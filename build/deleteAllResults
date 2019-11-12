@@ -1,0 +1,11 @@
+#!/bin/bash
+# process all joint.event.root files for given year and cluster
+# arguments: year(16,17,18,19), cluster(from zero/0)
+
+for runID in {1..999}
+do
+	command=$(printf "%04d" $runID)
+	echo $command
+
+	rm $CEPH_MNT/exp$1_barsv051/cluster$2/${command}/recCasc_*.root
+done

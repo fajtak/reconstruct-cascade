@@ -1,0 +1,8 @@
+#!/bin/bash
+# process all joint.event.root files for given year and cluster
+# arguments: year(16,17,18,19), cluster(from zero/0)
+
+for runID in {1..999}
+do
+	./reconstruct-cascade -s 20$1 -c $2 -r $runID
+done

@@ -1,0 +1,8 @@
+#!/bin/bash
+# downloads joint.event.root file for given cluster, year and runID
+# arguments: year(16,17,18,19), cluster(from zero/0), runID (from 1/one) 
+
+command=$(printf "%04d" $3)
+
+rsync -u /mnt/cephfs/exp$1_r01_i01_j01_t01/cluster$2/${command}/*joint.events.root $CEPH_MNT/exp$1_barsv051/cluster$2/${command}/ --progress 
+

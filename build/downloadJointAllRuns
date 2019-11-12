@@ -1,0 +1,11 @@
+#!/bin/bash
+# downloads all joint.event.root files for given year and cluster
+# arguments: year(16,17,18,19), cluster(from zero/0)
+
+for runID in {1..999}
+do
+	command=$(printf "%04d" $runID)
+	echo $command
+	#rsync /mnt/cephfs/exp$1_r01_i01_j01_t01/cluster$2/${command}/*joint.events.root /Data/BaikalData/exp$1_barsv051/cluster$2/${command}/ --progress
+	rsync -u -v /mnt/cephfs/exp$1_r01_i01_j01_t01/cluster$2/${command}/*joint.events.root $CEPH_MNT/exp$1_barsv051/cluster$2/${command}/ --progress 
+done

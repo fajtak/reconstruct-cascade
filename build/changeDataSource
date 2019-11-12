@@ -1,0 +1,19 @@
+#!/bin/bash
+# changes the enviroment variables referencing to the Baikal-GVD data from localHardDrive to externalDrive
+# arguments: whichDrive (0 = localDrive, 1 = externalDrive)
+
+if [ 0 -eq $1 ]
+then
+	CEPH_MNT="/Data/BaikalData"
+	echo $CEPH_MNT 
+fi
+if [ $1 -eq 1 ]
+then
+	CEPH_MNT="/media/fajtak/Data/BaikalData"
+	echo $CEPH_MNT	
+fi
+
+export BARS_DATA_PROCESSED=$CEPH_MNT
+export BARS_DATA_JOINT=$CEPH_MNT
+export BARS_DATA_RAW=$CEPH_MNT/raw
+export BARS_DATA_GEOMETRY=$CEPH_MNT/geometry
