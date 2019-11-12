@@ -6,6 +6,7 @@
 #include "TH1F.h"
 
 #include <iostream>
+#include <cstdlib>
 
 std::vector<double> stringXPositions = {0,0,0,0,0,0,0,0};
 std::vector<double> stringYPositions = {0,0,0,0,0,0,0,0};
@@ -37,7 +38,16 @@ void setStringPositions(int cluster)
 int studyReconstructedCascades(int year, int cluster)
 {
 	TChain reconstructedCascades("nt_cascades");
-	TString filesDir = Form("/media/fajtak/Data/BaikalData/exp%d_barsv051/cluster%d/",year,cluster);
+
+	TString filesDir;
+	if(const char* env_p = std::getenv("CEPH_MNT"))
+	{
+        	filesDir = Form("%s/exp%d_barsv051/cluster%d/",env_p,year,cluster);
+		cout << env_p << endl;
+	}else{	
+		cout << "SET ENVIROMENT VARIABLE CEPH_MNT" << endl;
+		return -1;
+	}
 
 	setStringPositions(cluster);
 
