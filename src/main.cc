@@ -256,7 +256,7 @@ bool TFilterPassed(BExtractedImpulseTel* impulseTel, TVector3& matrixPosition, d
 		{
 			double distanceFromLEDmatrix = (matrixPosition - gOMpositions[impulseTel->GetNch(i)]).Mag();
 			double scattering_correction = (gOMpositions[impulseTel->GetNch(i)].Z() < matrixPosition.Z()) ? (gScatteringCorrection/15.0)*(matrixPosition.Z() - gOMpositions[impulseTel->GetNch(i)].Z()) : 0;
-	        double expectedTime = matrixTime + distanceFromLEDmatrix*ReciprocalSpeedOfLightinWater;
+	        double expectedTime = matrixTime + distanceFromLEDmatrix*ReciprocalSpeedOfLightinWater + scattering_correction;
 
 	        h_timeRes->Fill(5*(impulseTel->GetT(i)) - expectedTime);
 	        if(5*(impulseTel->GetT(i)) - gOMtimeCal[impulseTel->GetNch(i)] >= expectedTime-gTCutTimeWindowNs && 5*(impulseTel->GetT(i)) - gOMtimeCal[impulseTel->GetNch(i)] <= expectedTime + gTCutTimeWindowNs)

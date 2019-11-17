@@ -4,6 +4,7 @@
 #include "TGraph.h"
 #include "TCanvas.h"
 #include "TH1F.h"
+#include "TMath.h"
 
 #include <iostream>
 #include <cstdlib>
@@ -15,16 +16,20 @@ void setStringPositions(int cluster)
 {
 	switch (cluster) {
 		case 0: 
-			/* code here */
+			stringXPositions = {-13.76,32.14,45.06,5.13,-45.034,-76.205,-59.85,-14.465};
+			stringYPositions = {-211.35,-235.88,-285.45,-325.828,-319.815,-281.633,-231.37,-270.172};
 			break;
 		case 1:
-			/* code here */
+			stringXPositions = {-195.186,-164.79,-180.08,-227.51,-276.243,-279.59,-248.17,-222.698};
+			stringYPositions = {-340.621,-384.09,-435.125,-450.127,-424.314,-372.59,-337.03,-391.09};
 			break;
 		case 2:
-			stringXPositions = {-270.462,-225.154,-221.309,-257.28,-310.08,-337.212,-319.92,-277.709};
-			stringYPositions = {-37.7285,-64.0684,-117.803,-154.07,-146.06,-101.399,-55.170,-98.5479};
+			stringXPositions = {-270.25,-228.578,-220.89,-261.89,-309.856,-337.48,-319.744,-282.265};
+			stringYPositions = {-37.36,-65.264,-117.78,-153.57,-146.267,-101.438,-55.245,-96.822};
 			break;
 		case 3:
+			stringXPositions = {65.849,108.73,113.87,74.189,25.1,-2.48,16.08,58.372};
+			stringYPositions = {-435.471,-462.39,-514.683,-549.898,-544.25,-500.533,-453,-491.965};
 			break;
 		case 4:
 			stringXPositions = {-163.912,-119.26,-113.895,-152.28,-202.59,-230.829,-213.25,-170.297};
@@ -42,7 +47,8 @@ int studyReconstructedCascades(int year, int cluster)
 	TString filesDir;
 	if(const char* env_p = std::getenv("CEPH_MNT"))
 	{
-        	filesDir = Form("%s/exp%d_barsv051/cluster%d/",env_p,year,cluster);
+    	// filesDir = Form("%s/exp%d_barsv051/cluster%d/",env_p,year,cluster);
+    	filesDir = Form("/Data/BaikalData/data/exp20%d/cluster%d/",year,cluster);
 		cout << env_p << endl;
 	}else{	
 		cout << "SET ENVIROMENT VARIABLE CEPH_MNT" << endl;
@@ -75,16 +81,27 @@ int studyReconstructedCascades(int year, int cluster)
 	reconstructedCascades.SetBranchAddress("Time", &time);
 
 	TGraph* cascadePositions = new TGraph(reconstructedCascades.GetEntries());
+	TGraph* zRhoPositions = new TGraph(reconstructedCascades.GetEntries());
 	TGraph* stringPositions = new TGraph(8,&stringXPositions[0],&stringYPositions[0]);
+	TGraph* NvsDistance = new TGraph(reconstructedCascades.GetEntries());
 
 	TH1F* h_nHits = new TH1F("h_nHits","Number of hits created by cascade;NHits [#];NoE [#]",100,0,100);
+	TH1F* h_X = new TH1F("h_X","X positions of reconstructed cascades",2000,-1000,1000);
+	TH1F* h_Y = new TH1F("h_Y","Y positions of reconstructed cascades",2000,-1000,1000);
 
 	for (int i = 0; i < reconstructedCascades.GetEntries(); ++i)
 	{
 		reconstructedCascades.GetEntry(i);
-		std::cout << i << "\t" << runID << "\t" << eventID << "\t\t" << nPulsesT << "\t" << qRatio << "\t" << closeHits << std::endl;
-		cascadePositions->SetPoint(i,X,Y);
-		h_nHits->Fill(nPulsesT);
+		std::cout << i << "\t" << runID << "\t" << eventID << "\t\t" << nPulsesT << "\t" << qRatio << "\t" << closeHits << "\t" << X << "\t" << Y << "\t" << Z << std::endl;
+		if (Z < 560)
+		{
+			cascadePositions->SetPoint(i,X,Y);
+			zRhoPositions->SetPoint(i,TMath::Sqrt(TMath::Power(X-stringXPositions[7],2)+TMath::Power(Y-stringYPositions[7],2)),Z);
+			NvsDistance->SetPoint(i,TMath::Sqrt(TMath::Power(X-stringXPositions[7],2)+TMath::Power(Y-stringYPositions[7],2)),nPulsesT);
+			h_X->Fill(X);
+			h_Y->Fill(Y);			
+			h_nHits->Fill(nPulsesT);			
+		}
 	}
 
 	TCanvas* c_cascadePositions = new TCanvas("c_cascadePositions","Results",800,600);
@@ -98,6 +115,23 @@ int studyReconstructedCascades(int year, int cluster)
 
 	TCanvas* c_nHits = new TCanvas("c_nHits","Results",800,600);
 	h_nHits->Draw();
+
+	TCanvas* c_XandY = new TCanvas("c_XandY","Results",800,600);		
+	c_XandY->Divide(1,2);
+	c_XandY->cd(1);
+	h_X->Draw();
+	c_XandY->cd(2);
+	h_Y->Draw();
+
+	TCanvas* c_ZRho = new TCanvas("c_ZRho","Results",800,600);
+	zRhoPositions->SetTitle("Positions of reconstructed cascades;Rho [m];Z [m]");
+	zRhoPositions->SetMarkerStyle(21);
+	zRhoPositions->Draw("AP");
+
+	TCanvas* c_NvsD = new TCanvas("c_NvsD","Results",800,600);
+	NvsDistance->SetTitle("Number of hits vs distance from the center string;Rho [m];Nhits [#]");
+	NvsDistance->SetMarkerStyle(21);
+	NvsDistance->Draw("AP");	
 
 	return 1;
 }
