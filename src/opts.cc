@@ -20,6 +20,7 @@ int gTCutChi2 = -1;
 int gZCut = -1;
 int gTDelayCut = -1;
 int gQRatioCut = -1;
+int gBranchCut = -1;
 double gScatteringCorrection = 10; //10 ns per 15 meters 
 
 using namespace BARS;
@@ -66,6 +67,7 @@ void readRC(const char* rcpath)
 	gZCut = env.GetValue("ZCut",600);
 	gTDelayCut = env.GetValue("TDelayCut",400);
 	gQRatioCut = env.GetValue("QRatioCut",80);
+	gBranchCut = env.GetValue("BranchCut",0);
 }
 
 // Parse options passed to the application.

@@ -419,7 +419,7 @@ bool BranchFilterPassed(TVector3& position)
 		else
 			lower++;
 	}
-	if (upper > lower)
+	if (upper-gBranchCut > lower)
 		return true;
 	else
 		return false;
@@ -627,8 +627,6 @@ int ReadGeometry(BExtractedHeader* header) // read dynamic geometry
 	TTree* geometryTree = nullptr;
 	TFile* geomFile = new TFile(geometryFileName,"READ");
 	geometryTree = (TTree*)geomFile->Get("Events");
-	if (!geometryTree)
-		return -1;
 
  	// check if the file is opened
 	if (!geomFile || !geometryTree)
@@ -650,10 +648,21 @@ int ReadGeometry(BExtractedHeader* header) // read dynamic geometry
 
 
   	//check if the geometry file covers the whole run
-  	if (geometryStartTime > startTime || geometryEndTime < startTime)
+  	if (geometryStartTime > startTime)
   	{
-    	cerr<< "Used geometry file does NOT cover the whole run period. Program termination!"<< endl;
-    	return -1;
+  		geometryTree->GetEntry(0);
+  		int nOKOMs = SetOMsDynamic(telGeometry);
+    	cerr<< "The precise dynamic geometry for this run was not available (startGeometry > startRun)" << endl;
+    	cerr<< "The first accessible detector geometry is used. The time difference: " << (geometryStartTime-startTime)/3600/24 << " days." << endl;
+    	return 0;
+  	}
+  	if (geometryEndTime < startTime)
+  	{
+  		geometryTree->GetEntry(geometryTree->GetEntries()-1);
+  		int nOKOMs = SetOMsDynamic(telGeometry);
+    	cerr<< "The precise dynamic geometry for this run was not available (endGeometry < startRun)" << endl;
+    	cerr<< "The last accessible detector geometry is used. The time difference: " << (startTime-geometryEndTime)/3600/24 << " days." << endl;
+    	return 0;
   	}
   	
   	// iterate through all the geometry entries

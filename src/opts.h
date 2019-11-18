@@ -15,6 +15,7 @@ extern int gTCutChi2;
 extern int gZCut;
 extern int gTDelayCut;
 extern int gQRatioCut;
+extern int gBranchCut;
 extern double gScatteringCorrection;
 
 void parseOpts(int argc, char** argv);
