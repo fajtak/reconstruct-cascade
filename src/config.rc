@@ -1,11 +1,11 @@
 NCut 40
 QCut 500
 QCutHits 6
-QCutChi2 15000
+QCutChi2 2000
 TCutTimeWindowNs 50
 TCutHits 10
-TCutChi2 50
+TCutChi2 5
 ZCut 600
 TDelayCut 400
-QRatioCut 80
+QRatioCut 70
 BranchCut 1

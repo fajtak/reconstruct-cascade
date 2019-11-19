@@ -4,5 +4,5 @@
 
 for runID in {1..999}
 do
-	./reconstruct-cascade -s 20$1 -c $2 -r $runID
+	./reconstruct-cascade -s 20$1 -c $2 -r $runID -x ../src/config.rc
 done

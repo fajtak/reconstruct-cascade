@@ -226,6 +226,7 @@ bool QFilterPassed(BExtractedImpulseTel* impulseTel)
 	for (int i = 0; i < impulseTel->GetNimpulse(); ++i)
 	{
 		h_chargePerHit->Fill(impulseTel->GetQ(i));
+		// cout << i << " " << impulseTel->GetNch(i) << " " << impulseTel->GetQ(i) << " " << impulseTel->GetT(i) << endl;
 		// h_nHitOM->Fill(impulseTel->GetNch(i));
 		if (impulseTel->GetQ(i) > gQCut && gOMtimeCal[impulseTel->GetNch(i)] != 0)
 		{
@@ -255,7 +256,7 @@ bool TFilterPassed(BExtractedImpulseTel* impulseTel, TVector3& matrixPosition, d
 			double scattering_correction = (gOMpositions[impulseTel->GetNch(i)].Z() < matrixPosition.Z()) ? (gScatteringCorrection/15.0)*(matrixPosition.Z() - gOMpositions[impulseTel->GetNch(i)].Z()) : 0;
 	        double expectedTime = matrixTime + distanceFromLEDmatrix*ReciprocalSpeedOfLightinWater + scattering_correction;
 
-	        h_timeRes->Fill(5*(impulseTel->GetT(i)) - expectedTime);
+	        h_timeRes->Fill(5*(impulseTel->GetT(i)) - gOMtimeCal[impulseTel->GetNch(i)] - expectedTime);
 	        if(5*(impulseTel->GetT(i)) - gOMtimeCal[impulseTel->GetNch(i)] >= expectedTime-gTCutTimeWindowNs && 5*(impulseTel->GetT(i)) - gOMtimeCal[impulseTel->GetNch(i)] <= expectedTime + gTCutTimeWindowNs)
 	        {
 	        	if (OMIDAlreadyInGPulses(impulseTel->At(i)))
@@ -418,6 +419,7 @@ bool BranchFilterPassed(TVector3& position)
 		else
 			lower++;
 	}
+	// cout << upper << " " << lower << endl;
 	if (upper+gBranchCut > lower)
 		return true;
 	else
@@ -444,7 +446,7 @@ bool CloseHitsFilterPassed(TVector3& matrixPosition, int &closeHits)
 
 	for (int i = 0; i < gNOMs; ++i)
 	{
-		if (h_nHitOM->GetBinContent(i) != 0 & gOMpositions[i].Z() > matrixPosition.Z() && gOMtimeCal[i] != 0)
+		if (h_nHitOM->GetBinContent(i) != 0 & gOMpositions[i].Z() > matrixPosition.Z()-20 && gOMtimeCal[i] != 0)
 		{
 			// cout << i << endl;
 			// gOMpositions[i].Print();
