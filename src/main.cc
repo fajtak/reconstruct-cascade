@@ -108,7 +108,7 @@ void chi2(Int_t &npar, Double_t* gin, Double_t &f, Double_t* par, Int_t iflag) /
 	for (int i = 0; i < g_pulses.size(); ++i) 
 	{       
 		// chi calculation (measured - theoretical)
-		theChi = constant*error*(g_pulses[i].time - ExpectedTime(par[0], par[1], par[2], par[3], g_pulses[i].OMID));
+		theChi = constant*error*(g_pulses[i].time - ExpectedTime(par[0], par[1], par[2], par[3], g_pulses[i].OMID))*TMath::Log10(g_pulses[i].charge/150+1);
 	  	// theChi = constant*error*(g_pulses[i].Times - ExpectedTime(myOMs,g_pulses[i].OMID, par[0], par[1], par[2], par[3]))*log(g_pulses[i].Charge);
 		theChi2 += theChi*theChi;  
 	}
@@ -143,24 +143,20 @@ double FitMatrixPosition(TVector3 &R2, double &T2)
 	int nvpar, nparx;
 
 	fMinuit->GetStats(chi2,edm,errdef,nvpar,nparx);
-	fMinuit->GetParameter(0);
-	fMinuit->GetParameter(1);
-	fMinuit->GetParameter(2); 
-	fMinuit->GetParameter(3);
 
 	R2.SetX(fMinuit->GetParameter(0));
 	R2.SetY(fMinuit->GetParameter(1));
 	R2.SetZ(fMinuit->GetParameter(2));
 	T2 = fMinuit->GetParameter(3);
 
-	/* cout<<"Chi2  "<<chi2<<endl;
-	cout<<"Pozicia kaskady po Fite "<<R2.X()<<endl;
+	 // cout<<"Chi2  "<<chi2/(g_pulses.size()-4)<<endl;
+	/*cout<<"Pozicia kaskady po Fite "<<R2.X()<<endl;
 	cout<<"Pozicia kaskady po Fite "<<R2.Y()<<endl;
 	cout<<"Pozicia kaskady po Fite "<<R2.Z()<<endl;
 	cout<<"Cas                     "<<T2<<endl;
 	cout<<" "<<endl;*/
 
-	return chi2;  
+	return chi2/(g_pulses.size()-4);  
 }
 
 // Fitter setting
@@ -170,8 +166,8 @@ void SetFitter(void)
 	double arg = -1;
 	fMinuit->ExecuteCommand("SET PRINTOUT",&arg,1); // these two lines means that it wont be able to print results on the screen
 	fMinuit->ExecuteCommand("SET NOW", &arg ,1);
-	fMinuit->SetFCN(chi2);
-	// fMinuit->SetFCN(MEstimator);
+	// fMinuit->SetFCN(chi2);
+	fMinuit->SetFCN(MEstimator);
 }
 
 void PrintConfig(void)
@@ -189,6 +185,7 @@ void PrintConfig(void)
 	std::cout << "ZFilter: " << gZCut << endl;
 	std::cout << "TDelayFilter: " << gTDelayCut << endl;
 	std::cout << "QRatioFilter: " << gQRatioCut << endl;
+	std::cout << "BranchFilter: " << gBranchCut << endl;
 	std::cout << std::string(80,'*') << std::endl;
 }
 
@@ -229,7 +226,7 @@ bool QFilterPassed(BExtractedImpulseTel* impulseTel)
 	for (int i = 0; i < impulseTel->GetNimpulse(); ++i)
 	{
 		h_chargePerHit->Fill(impulseTel->GetQ(i));
-		h_nHitOM->Fill(impulseTel->GetNch(i));
+		// h_nHitOM->Fill(impulseTel->GetNch(i));
 		if (impulseTel->GetQ(i) > gQCut && gOMtimeCal[impulseTel->GetNch(i)] != 0)
 		{
 			if (OMIDAlreadyInGPulses(impulseTel->At(i)))
@@ -293,7 +290,7 @@ void EstimateInitialMatrixPosition(TVector3& position, double& matrixTime)
 	// cout << matrixTime << endl;
 }
 
-void EventVisualization(BExtractedImpulseTel* impulseTel, TVector3& position, double& matrixTime, int eventID)
+int EventVisualization(BExtractedImpulseTel* impulseTel, TVector3& position, double& matrixTime, int eventID)
 {
 	int nHitsPerString[gNStrings]{0};
 	TGraph* g_hits[gNStrings];
@@ -367,6 +364,7 @@ void EventVisualization(BExtractedImpulseTel* impulseTel, TVector3& position, do
 	{
 		delete mg_hitsMatrix[i];
 	}
+	return 0;
 }
 
 bool ZFilterPassed(TVector3& position)
@@ -400,6 +398,7 @@ bool QRatioFilterPassed(BExtractedImpulseTel* impulseTel, double &qRatio)
 	{
 		insideCharge += g_pulses[i].charge>0?g_pulses[i].charge:0;
 	}
+	// PrintGPulses();
 	// cout << "allCharge: " << allCharge << " insideCharge: " << insideCharge << " Ratio: " << (double)insideCharge/allCharge*100 << endl;
 	qRatio = (double)insideCharge/allCharge*100;
 	if (qRatio > gQRatioCut)
@@ -419,7 +418,7 @@ bool BranchFilterPassed(TVector3& position)
 		else
 			lower++;
 	}
-	if (upper-gBranchCut > lower)
+	if (upper+gBranchCut > lower)
 		return true;
 	else
 		return false;
@@ -472,7 +471,7 @@ bool CloseHitsFilterPassed(TVector3& matrixPosition, int &closeHits)
 	// PrintGPulses();
 	// cout << "closeHits: " << closeHits << endl;
 
-	if (closeHits > 10)
+	if (closeHits > 8)
 		return true;
 	else
 		return false;
@@ -492,6 +491,20 @@ void FillCascPos(TVector3 matrixPosition)
 
 int DoTheMagic(TTree* tree, BExtractedImpulseTel* impulseTel)
 {
+	// if --view (-v) switch is used, only specified eventID is visualized and program stops
+	if (gVisEventID != -1)
+	{
+		TString outputFileName = BARS::Data::Directory(BARS::App::Cluster, BARS::App::Season, BARS::App::Run, BARS::Data::JOINT, "barsv051");
+		outputFileName += Form("recCasc_vis_%d.root",gVisEventID);
+		TFile* outputFile = new TFile(outputFileName,"RECREATE");
+		tree->GetEntry(gVisEventID);
+		TVector3 matrixPosition(0,0,0); 
+		double matrixTime = 0;
+		EventVisualization(impulseTel,matrixPosition,matrixTime,gVisEventID);
+		cout << "Visualization of event: " << gVisEventID << " has been produced!" << endl;
+		return 0;
+	}
+
 	TString outputFileName2 = BARS::Data::Directory(BARS::App::Cluster, BARS::App::Season, BARS::App::Run, BARS::Data::JOINT, "barsv051");
 	outputFileName2 += "recCasc_nTuple.root";
 	TFile* outputFile2 = new TFile(outputFileName2,"RECREATE");
@@ -518,7 +531,19 @@ int DoTheMagic(TTree* tree, BExtractedImpulseTel* impulseTel)
 	int nPulsesT = 0;
 	double qRatio = 0;
 	int closeHits = 0;
+	double fitValue = 0;
 
+	for (int i = 0; i < tree->GetEntries(); ++i)
+	{
+		tree->GetEntry(i);
+		for (int j = 0; j < impulseTel->GetNimpulse(); ++j)
+		{
+			h_nHitOM->Fill(impulseTel->GetNch(j));
+		}
+		
+	}
+
+	// Loop through all the events
 	for (int i = 0; i < nEntries; ++i)
 	{
 		if (i%(nEntries/10) == 0)
@@ -538,6 +563,7 @@ int DoTheMagic(TTree* tree, BExtractedImpulseTel* impulseTel)
 		TVector3 matrixPosition(0,0,0); 
 		double matrixTime = 0;
 		EstimateInitialMatrixPosition(matrixPosition,matrixTime);
+		fMinuit->SetFCN(MEstimator);
 		double chi2QResult = FitMatrixPosition(matrixPosition,matrixTime);
 		h_chi2AfterQ->Fill(chi2QResult);
 		if (chi2QResult > gQCutChi2)
@@ -546,6 +572,7 @@ int DoTheMagic(TTree* tree, BExtractedImpulseTel* impulseTel)
 		if (!TFilterPassed(impulseTel,matrixPosition,matrixTime,nPulsesT))
 			continue;
 		nTFilter++;
+		fMinuit->SetFCN(chi2);
 		double chi2TResult = FitMatrixPosition(matrixPosition,matrixTime);
 		h_chi2AfterT->Fill(chi2TResult);
 		if (chi2TResult > gTCutChi2)
@@ -559,7 +586,6 @@ int DoTheMagic(TTree* tree, BExtractedImpulseTel* impulseTel)
 		if (!TDelayFilterPassed(matrixTime))
 			continue;
 		nTDelayFilter++;
-		// cout << i << endl;
 		if (!QRatioFilterPassed(impulseTel,qRatio))
 			continue;
 		nQRatioFilter++;
@@ -569,8 +595,9 @@ int DoTheMagic(TTree* tree, BExtractedImpulseTel* impulseTel)
 		if (!CloseHitsFilterPassed(matrixPosition,closeHits))
 			continue;
 		nCloseHitsFilter++;
-		nt_cascades->Fill((double)BARS::App::Run,(double)i,(double)nPulses,(double)nPulsesT,qRatio,(double)closeHits,matrixPosition.X(),matrixPosition.Y(),matrixPosition.Z(),matrixTime);
 		EventVisualization(impulseTel,matrixPosition,matrixTime,i);
+		nt_cascades->Fill((double)BARS::App::Run,(double)i,(double)nPulses,(double)nPulsesT,qRatio,(double)closeHits,matrixPosition.X(),matrixPosition.Y(),matrixPosition.Z(),matrixTime);
+		// cout << i << " " << fitValue << endl;
 		if (nCloseHitsFilter > 100)
 		{
 			cout << "File was identified as a matrixRun and terminated" << endl;
@@ -653,7 +680,8 @@ int ReadGeometry(BExtractedHeader* header) // read dynamic geometry
   		geometryTree->GetEntry(0);
   		int nOKOMs = SetOMsDynamic(telGeometry);
     	cerr<< "The precise dynamic geometry for this run was not available (startGeometry > startRun)" << endl;
-    	cerr<< "The first accessible detector geometry is used. The time difference: " << (geometryStartTime-startTime)/3600/24 << " days." << endl;
+    	cerr << "StartGeometry: " << geometryStartTime << " startRun: " << startTime << endl;
+    	cerr<< "The first accessible detector geometry is used. The time difference: " << (geometryStartTime-startTime)/3600.0/24.0 << " days." << endl;
     	return 0;
   	}
   	if (geometryEndTime < startTime)
@@ -661,7 +689,7 @@ int ReadGeometry(BExtractedHeader* header) // read dynamic geometry
   		geometryTree->GetEntry(geometryTree->GetEntries()-1);
   		int nOKOMs = SetOMsDynamic(telGeometry);
     	cerr<< "The precise dynamic geometry for this run was not available (endGeometry < startRun)" << endl;
-    	cerr<< "The last accessible detector geometry is used. The time difference: " << (startTime-geometryEndTime)/3600/24 << " days." << endl;
+    	cerr<< "The last accessible detector geometry is used. The time difference: " << (startTime-geometryEndTime)/3600.0/24.0 << " days." << endl;
     	return 0;
   	}
   	
@@ -782,7 +810,7 @@ int main(int argc, char** argv)
 
 	PrintConfig();
 	cout << "Season: " << BARS::App::Season << " Cluster: " << BARS::App::Cluster << " Run: " <<  BARS::App::Run << endl;
-	tree->GetEntry(0);
+	tree->GetEntry(1);
 	if (ReadGeometry(header) == -1)
 	{
 		std::cout << "Problem with geometry file!" << std::endl;

@@ -5,6 +5,7 @@
 #include "string"
 
 extern int gNEventsProcessed;
+extern int gVisEventID;
 extern int gNCut;
 extern int gQCut;
 extern int gQCutHits;

@@ -21,6 +21,7 @@ int gZCut = -1;
 int gTDelayCut = -1;
 int gQRatioCut = -1;
 int gBranchCut = -1;
+int gVisEventID = -1;
 double gScatteringCorrection = 10; //10 ns per 15 meters 
 
 using namespace BARS;
@@ -40,6 +41,16 @@ static const struct App::ProgramOption_t options_list[]{
 			required_argument,
 			"set number of events you want to process",
 			[](char* argv) {gNEventsProcessed = atoi(argv);},
+			[]() {;}
+		},
+		NOT_REQUIRED
+	},
+	{
+		{
+			"view", 'w',
+			required_argument,
+			"set ID of the event that should be visualized",
+			[](char* argv) {gVisEventID = atoi(argv);},
 			[]() {;}
 		},
 		NOT_REQUIRED
