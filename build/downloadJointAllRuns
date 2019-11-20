@@ -8,4 +8,5 @@ do
 	echo $command
 	#rsync /mnt/cephfs/exp$1_r01_i01_j01_t01/cluster$2/${command}/*joint.events.root /Data/BaikalData/exp$1_barsv051/cluster$2/${command}/ --progress
 	rsync -u -v /mnt/cephfs/exp$1_r01_i01_j01_t01/cluster$2/${command}/*joint.events.root $CEPH_MNT/exp$1_barsv051/cluster$2/${command}/ --progress 
+	rsync -u -v /mnt/cephfs/exp$1_r01_i01_j01_t01/cluster$2/${command}/*.qcalib $CEPH_MNT/exp$1_barsv051/cluster$2/${command}/ --progress 
 done

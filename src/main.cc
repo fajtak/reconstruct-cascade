@@ -32,6 +32,7 @@ const double ReciprocalSpeedOfLightinWater = 4.57;
 
 vector<TVector3> gOMpositions(288);
 vector<double> gOMtimeCal(288);
+vector<double> gOMQCal(288);
 
 struct PulsesVariables
 {
@@ -446,7 +447,7 @@ bool CloseHitsFilterPassed(TVector3& matrixPosition, int &closeHits)
 
 	for (int i = 0; i < gNOMs; ++i)
 	{
-		if (h_nHitOM->GetBinContent(i) != 0 & gOMpositions[i].Z() > matrixPosition.Z()-20 && gOMtimeCal[i] != 0)
+		if (gOMQCal[i] != -1 & gOMpositions[i].Z() > matrixPosition.Z()-20 && gOMtimeCal[i] != 0)
 		{
 			// cout << i << endl;
 			// gOMpositions[i].Print();
@@ -493,7 +494,7 @@ void FillCascPos(TVector3 matrixPosition)
 
 int DoTheMagic(TTree* tree, BExtractedImpulseTel* impulseTel)
 {
-	// if --view (-v) switch is used, only specified eventID is visualized and program stops
+	// if --view (-w) switch is used, only specified eventID is visualized and program stops
 	if (gVisEventID != -1)
 	{
 		TString outputFileName = BARS::Data::Directory(BARS::App::Cluster, BARS::App::Season, BARS::App::Run, BARS::Data::JOINT, "barsv051");
@@ -535,15 +536,15 @@ int DoTheMagic(TTree* tree, BExtractedImpulseTel* impulseTel)
 	int closeHits = 0;
 	double fitValue = 0;
 
-	for (int i = 0; i < tree->GetEntries(); ++i)
-	{
-		tree->GetEntry(i);
-		for (int j = 0; j < impulseTel->GetNimpulse(); ++j)
-		{
-			h_nHitOM->Fill(impulseTel->GetNch(j));
-		}
+	// for (int i = 0; i < tree->GetEntries(); ++i)
+	// {
+	// 	tree->GetEntry(i);
+	// 	for (int j = 0; j < impulseTel->GetNimpulse(); ++j)
+	// 	{
+	// 		h_nHitOM->Fill(impulseTel->GetNch(j));
+	// 	}
 		
-	}
+	// }
 
 	// Loop through all the events
 	for (int i = 0; i < nEntries; ++i)
@@ -765,6 +766,40 @@ int ReadTimeCal(void)
     return 0;
 }
 
+// The charge calibration parameters are read directly from qcalib file created by Zhenya's DQM in the same folder
+// It also let us know about operating OMs. If there is -1 in the qcalib for OM we assume it is dead.
+int ReadQCal(void)
+{
+	const char* filePath = BARS::Data::File(BARS::App::Cluster, BARS::App::Season, BARS::App::Run, BARS::Data::JOINT,"barsv051");
+	TString jointFileName(filePath);
+	TString chargeFileName(jointFileName(0,jointFileName.Length()-17));
+	chargeFileName += "qcalib";
+
+	ifstream inputFile;
+    inputFile.open(chargeFileName);
+
+    if (!inputFile)
+    {
+    	cerr << "Calibration file: " << chargeFileName << " was NOT found. Program termination!" << endl;
+    	return -1;
+  	}
+
+    string dummyLine;
+    double readValue = 0;
+
+    for (int i = 0; i < gNOMs; ++i)
+    {
+		inputFile >> readValue;
+		gOMQCal[i] = readValue;
+		if ((i+1)%36 == 0)
+		{
+		    getline(inputFile,dummyLine);
+		    getline(inputFile,dummyLine);
+		}
+    }
+    inputFile.close();
+}
+
 void SaveHistograms()
 {
 	TString outputFileName = BARS::Data::Directory(BARS::App::Cluster, BARS::App::Season, BARS::App::Run, BARS::Data::JOINT, "barsv051");
@@ -812,7 +847,7 @@ int main(int argc, char** argv)
 
 	PrintConfig();
 	cout << "Season: " << BARS::App::Season << " Cluster: " << BARS::App::Cluster << " Run: " <<  BARS::App::Run << endl;
-	tree->GetEntry(1);
+	tree->GetEntry(5);
 	if (ReadGeometry(header) == -1)
 	{
 		std::cout << "Problem with geometry file!" << std::endl;
@@ -822,6 +857,11 @@ int main(int argc, char** argv)
 	{
 		std::cout << "Problem with time calibration files!" << std::endl;
 		return -1;
+	}
+	if (ReadQCal() == -1)
+	{
+		std::cout << "Problem with charge calibration files!" << std::endl;
+		return -1;	
 	}
 
 	DoTheMagic(tree,impulseTel);

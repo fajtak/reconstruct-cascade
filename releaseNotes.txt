@@ -1,0 +1,23 @@
+21.11.2019 - git commit ---
+
+	* In downloadJoint and downloadJointAllRuns added also download of the qcalib file from Zhenya's DQM
+	* Qcalib is read from h0XXX.qcalib file and if qcalib constant is -1 it is assumed that the OM is not working
+	* CloseHitsFilter is now based on the qcalib and not on the h_nHitsOM
+	* start time of the run is newly taken from the fifth header entry since there are runs where the first two entries have zero values
+
+19.11.2019 - git commit db5a086f8e6ea6feec34a087b8a9e54c1963ae50
+
+	* src/config.rc is now used as a default option for processAllRuns script
+	* changes in the values of the cut variables saved in src/config.rc
+	* change in the calculation of the closeHits. Now also the first lower layer of OMs is taken into account when the closest OMs are calculated
+
+19.11.2019 - git commit 48cc8136f96c177ecfded97b66ae4aac036d12db
+
+	* New switch "-w eventID" was added which enables to produce only single visualization of the event with given ID without any fitting. Very useful for the verification of the reconstructed cascades by someone else.
+	* The first fit after QFilter was changed from chi2 to MEstimator (ANATERES) which is much more stable for low Qcut values
+	* values returned from chi2 as well as MEstimator are newly divided by NDF
+	* the histogram h_nHitOM which is used for the closeHits filter is newly correctly filled before the main event loop which makes the whole procedure slower but better
+	* the implementation of the gBranchCut was corrected
+	* number of close hits in the closeHitsFilter has been changed from 10 to 6
+	* multiple changes in the values of the cut variables saved in src/config.rc
+	* start time of the run is now extracted from the second header entry since some of the runs have the first entry equal 0
