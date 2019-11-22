@@ -1,4 +1,8 @@
-21.11.2019 - git commit ---
+22.11.2019 - git commit ---
+
+	* New switch "-t productionID" (tag) has been added to be able to change the name of the data processing production ID. The default value is "barsv051" other common option is "r01_i01_j01_t01"
+
+20.11.2019 - git commit d0292fc96f7f60b4cb176654feaee6db1f1547dc
 
 	* In downloadJoint and downloadJointAllRuns added also download of the qcalib file from Zhenya's DQM
 	* Qcalib is read from h0XXX.qcalib file and if qcalib constant is -1 it is assumed that the OM is not working

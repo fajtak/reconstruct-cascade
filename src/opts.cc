@@ -23,6 +23,7 @@ int gQRatioCut = -1;
 int gBranchCut = -1;
 int gVisEventID = -1;
 double gScatteringCorrection = 10; //10 ns per 15 meters 
+std::string gProductionID = "";
 
 using namespace BARS;
 
@@ -51,6 +52,16 @@ static const struct App::ProgramOption_t options_list[]{
 			required_argument,
 			"set ID of the event that should be visualized",
 			[](char* argv) {gVisEventID = atoi(argv);},
+			[]() {;}
+		},
+		NOT_REQUIRED
+	},
+	{
+		{
+			"tag", 't',
+			required_argument,
+			"set production ID of the data that will be processed",
+			[](char* argv) {gProductionID = argv;},
 			[]() {;}
 		},
 		NOT_REQUIRED

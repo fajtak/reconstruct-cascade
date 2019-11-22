@@ -2,7 +2,7 @@
 #ifndef PARSEOPTS
 #define PARSEOPTS
 
-#include "string"
+#include <string>
 
 extern int gNEventsProcessed;
 extern int gVisEventID;
@@ -18,6 +18,7 @@ extern int gTDelayCut;
 extern int gQRatioCut;
 extern int gBranchCut;
 extern double gScatteringCorrection;
+extern std::string gProductionID;
 
 void parseOpts(int argc, char** argv);
 void readRC(const char* rcpath);

@@ -497,7 +497,7 @@ int DoTheMagic(TTree* tree, BExtractedImpulseTel* impulseTel)
 	// if --view (-w) switch is used, only specified eventID is visualized and program stops
 	if (gVisEventID != -1)
 	{
-		TString outputFileName = BARS::Data::Directory(BARS::App::Cluster, BARS::App::Season, BARS::App::Run, BARS::Data::JOINT, "barsv051");
+		TString outputFileName = BARS::Data::Directory(BARS::App::Cluster, BARS::App::Season, BARS::App::Run, BARS::Data::JOINT, gProductionID.c_str());
 		outputFileName += Form("recCasc_vis_%d.root",gVisEventID);
 		TFile* outputFile = new TFile(outputFileName,"RECREATE");
 		tree->GetEntry(gVisEventID);
@@ -508,13 +508,13 @@ int DoTheMagic(TTree* tree, BExtractedImpulseTel* impulseTel)
 		return 0;
 	}
 
-	TString outputFileName2 = BARS::Data::Directory(BARS::App::Cluster, BARS::App::Season, BARS::App::Run, BARS::Data::JOINT, "barsv051");
+	TString outputFileName2 = BARS::Data::Directory(BARS::App::Cluster, BARS::App::Season, BARS::App::Run, BARS::Data::JOINT, gProductionID.c_str());
 	outputFileName2 += "recCasc_nTuple.root";
 	TFile* outputFile2 = new TFile(outputFileName2,"RECREATE");
 
    	TNtuple* nt_cascades = new TNtuple("nt_cascades","NTuple of reconstructed cascades","runID:EventID:NPulses:NPulsesT:QRatio:CloseHits:X:Y:Z:Time");
 
-	TString outputFileName = BARS::Data::Directory(BARS::App::Cluster, BARS::App::Season, BARS::App::Run, BARS::Data::JOINT, "barsv051");
+	TString outputFileName = BARS::Data::Directory(BARS::App::Cluster, BARS::App::Season, BARS::App::Run, BARS::Data::JOINT, gProductionID.c_str());
 	outputFileName += "recCasc_vis.root";
 	TFile* outputFile = new TFile(outputFileName,"RECREATE");
 
@@ -770,7 +770,7 @@ int ReadTimeCal(void)
 // It also let us know about operating OMs. If there is -1 in the qcalib for OM we assume it is dead.
 int ReadQCal(void)
 {
-	const char* filePath = BARS::Data::File(BARS::App::Cluster, BARS::App::Season, BARS::App::Run, BARS::Data::JOINT,"barsv051");
+	const char* filePath = BARS::Data::File(BARS::App::Cluster, BARS::App::Season, BARS::App::Run, BARS::Data::JOINT,gProductionID.c_str());
 	TString jointFileName(filePath);
 	TString chargeFileName(jointFileName(0,jointFileName.Length()-17));
 	chargeFileName += "qcalib";
@@ -802,7 +802,7 @@ int ReadQCal(void)
 
 void SaveHistograms()
 {
-	TString outputFileName = BARS::Data::Directory(BARS::App::Cluster, BARS::App::Season, BARS::App::Run, BARS::Data::JOINT, "barsv051");
+	TString outputFileName = BARS::Data::Directory(BARS::App::Cluster, BARS::App::Season, BARS::App::Run, BARS::Data::JOINT, gProductionID.c_str());
 	outputFileName += "recCasc_hist.root";
 	TFile* outputFile = new TFile(outputFileName,"RECREATE");
 	h_nHits->Write();
@@ -827,8 +827,11 @@ int main(int argc, char** argv)
     if (!CheckParams)
     	return -1;
 
+    if (gProductionID == "")
+    	gProductionID = "barsv051";
+
     // const char* filePath = BARS::Data::File(BARS::App::Cluster, BARS::App::Season, BARS::App::Run, BARS::Data::JOINT,"r01_i01_j01_t01");
-    const char* filePath = BARS::Data::File(BARS::App::Cluster, BARS::App::Season, BARS::App::Run, BARS::Data::JOINT,"barsv051");
+    const char* filePath = BARS::Data::File(BARS::App::Cluster, BARS::App::Season, BARS::App::Run, BARS::Data::JOINT,gProductionID.c_str());
 
     if (!BARS::App::FileExists(filePath))
     {
