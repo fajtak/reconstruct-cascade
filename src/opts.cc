@@ -13,16 +13,17 @@ int gNEventsProcessed = -1;
 int gNCut = -1;
 int gQCut = -1;
 int gQCutHits = -1;
-int gQCutChi2 = -1;
-int gTCutTimeWindowNs = -1;
+double gQCutChi2 = -1;
+double gTCutTimeWindowNs = -1;
 int gTCutHits = -1;
-int gTCutChi2 = -1;
-int gZCut = -1;
-int gTDelayCut = -1;
-int gQRatioCut = -1;
+double gTCutChi2 = -1;
+double gZCut = -1;
+double gTDelayCut = -1;
+double gQRatioCut = -1;
 int gBranchCut = -1;
 int gVisEventID = -1;
 double gScatteringCorrection = 10; //10 ns per 15 meters 
+double gLikelihoodCut = -1;
 std::string gProductionID = "";
 
 using namespace BARS;
@@ -90,6 +91,7 @@ void readRC(const char* rcpath)
 	gTDelayCut = env.GetValue("TDelayCut",400);
 	gQRatioCut = env.GetValue("QRatioCut",80);
 	gBranchCut = env.GetValue("BranchCut",0);
+	gLikelihoodCut = env.GetValue("LikelihoodCut",2);
 }
 
 // Parse options passed to the application.

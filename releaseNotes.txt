@@ -1,4 +1,10 @@
-22.11.2019 - git commit ---
+29.11.2019 - git commit ---
+	
+	* Loglikelihood for direction and energy reconstruction added
+	* 4D pdf table is read
+	* 8 string graphs with measured and expected charges are created
+
+22.11.2019 - git commit 47fc8ce4b17b7e12e5ab351a816b852ac311ec7c
 
 	* New switch "-t productionID" (tag) has been added to be able to change the name of the data processing production ID. The default value is "barsv051" other common option is "r01_i01_j01_t01"
 
