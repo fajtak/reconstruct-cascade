@@ -48,7 +48,7 @@ int studyReconstructedCascades(int year, int cluster)
 	if(const char* env_p = std::getenv("CEPH_MNT"))
 	{
     	// filesDir = Form("%s/exp%d_barsv051/cluster%d/",env_p,year,cluster);
-    	filesDir = Form("/Data/BaikalData/data/exp20%d/cluster%d/",year,cluster);
+    	filesDir = Form("/Data/BaikalData/dataLog/exp20%d/cluster%d/",year,cluster);
 		cout << env_p << endl;
 	}else{	
 		cout << "SET ENVIROMENT VARIABLE CEPH_MNT" << endl;
@@ -68,39 +68,54 @@ int studyReconstructedCascades(int year, int cluster)
 
 	// reconstructedCascades.Add(filesDir.Data()); // add files,
 
-	float runID, eventID, nPulses, nPulsesT, qRatio, closeHits, X, Y, Z, time;
+	float runID, eventID, nPulses, nPulsesT, qRatio, closeHits, X, Y, Z, time, likelihood,energy,theta,phi;
 	reconstructedCascades.SetBranchAddress("runID", &runID);
 	reconstructedCascades.SetBranchAddress("EventID", &eventID);
 	reconstructedCascades.SetBranchAddress("NPulses", &nPulses);
 	reconstructedCascades.SetBranchAddress("NPulsesT", &nPulsesT);
 	reconstructedCascades.SetBranchAddress("QRatio", &qRatio);
 	reconstructedCascades.SetBranchAddress("CloseHits", &closeHits);
+	reconstructedCascades.SetBranchAddress("Likelihood", &likelihood);
 	reconstructedCascades.SetBranchAddress("X", &X);
 	reconstructedCascades.SetBranchAddress("Y", &Y);
 	reconstructedCascades.SetBranchAddress("Z", &Z);
 	reconstructedCascades.SetBranchAddress("Time", &time);
+	reconstructedCascades.SetBranchAddress("Energy", &energy);
+	reconstructedCascades.SetBranchAddress("Theta", &theta);
+	reconstructedCascades.SetBranchAddress("Phi", &phi);
 
 	TGraph* cascadePositions = new TGraph(reconstructedCascades.GetEntries());
 	TGraph* zRhoPositions = new TGraph(reconstructedCascades.GetEntries());
 	TGraph* stringPositions = new TGraph(8,&stringXPositions[0],&stringYPositions[0]);
 	TGraph* NvsDistance = new TGraph(reconstructedCascades.GetEntries());
 
+	TGraph* NvsEnergy = new TGraph(reconstructedCascades.GetEntries());
+
 	TH1F* h_nHits = new TH1F("h_nHits","Number of hits created by cascade;NHits [#];NoE [#]",100,0,100);
 	TH1F* h_X = new TH1F("h_X","X positions of reconstructed cascades",2000,-1000,1000);
 	TH1F* h_Y = new TH1F("h_Y","Y positions of reconstructed cascades",2000,-1000,1000);
+	TH1F* h_energy = new TH1F("h_energy","Cascades Energy;Energy [TeV];NoE [#]",200,0,2000);
+	TH1F* h_zenith = new TH1F("h_zenith","Zenith angle;Theta [degree];NoE [#]",180,0,180);
 
 	for (int i = 0; i < reconstructedCascades.GetEntries(); ++i)
 	{
 		reconstructedCascades.GetEntry(i);
+		if (energy < 100 || nPulsesT < 20)
+			continue;
 		std::cout << i << "\t" << runID << "\t" << eventID << "\t\t" << nPulsesT << "\t" << qRatio << "\t" << closeHits << "\t" << X << "\t" << Y << "\t" << Z << std::endl;
+		std::cout << i << "\t" << likelihood << "\t" << energy << "\t\t" << theta << "\t" << phi << std::endl;
 		if (Z < 560)
 		{
 			cascadePositions->SetPoint(i,X,Y);
 			zRhoPositions->SetPoint(i,TMath::Sqrt(TMath::Power(X-stringXPositions[7],2)+TMath::Power(Y-stringYPositions[7],2)),Z);
 			NvsDistance->SetPoint(i,TMath::Sqrt(TMath::Power(X-stringXPositions[7],2)+TMath::Power(Y-stringYPositions[7],2)),nPulsesT);
+			NvsEnergy->SetPoint(i,energy,nPulsesT);
 			h_X->Fill(X);
 			h_Y->Fill(Y);			
-			h_nHits->Fill(nPulsesT);			
+			h_nHits->Fill(nPulsesT);		
+			h_energy->Fill(energy);	
+			h_zenith->Fill((theta/TMath::Pi()*180));	
+			// if ()
 		}
 	}
 
@@ -131,7 +146,18 @@ int studyReconstructedCascades(int year, int cluster)
 	TCanvas* c_NvsD = new TCanvas("c_NvsD","Results",800,600);
 	NvsDistance->SetTitle("Number of hits vs distance from the center string;Rho [m];Nhits [#]");
 	NvsDistance->SetMarkerStyle(21);
-	NvsDistance->Draw("AP");	
+	NvsDistance->Draw("AP");
+
+	TCanvas* c_NvsE = new TCanvas("c_NvsE","Results",800,600);
+	NvsEnergy->SetTitle("Number of hits vs reconstructed energy;Energy [TeV];Nhits [#]");
+	NvsEnergy->SetMarkerStyle(21);
+	NvsEnergy->Draw("AP");	
+
+	TCanvas* c_energy = new TCanvas("c_energy","Results",800,600);
+	h_energy->Draw();
+
+	TCanvas* c_theta = new TCanvas("c_theta","Results",800,600);
+	h_zenith->Draw();
 
 	return 1;
 }

@@ -91,7 +91,7 @@ void readRC(const char* rcpath)
 	gTDelayCut = env.GetValue("TDelayCut",400);
 	gQRatioCut = env.GetValue("QRatioCut",80);
 	gBranchCut = env.GetValue("BranchCut",0);
-	gLikelihoodCut = env.GetValue("LikelihoodCut",2);
+	gLikelihoodCut = env.GetValue("LikelihoodCut",2.5);
 }
 
 // Parse options passed to the application.

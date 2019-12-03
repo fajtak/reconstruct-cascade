@@ -516,7 +516,7 @@ int EventVisualization(BExtractedImpulseTel* impulseTel, TVector3& position, dou
 		g_hits[i] = new TGraph(nHitsPerString[i]);
 		g_lowerLimit[i] = new TGraph(nOMsPerString);
 		g_upperLimit[i] = new TGraph(nOMsPerString);
-		mg_hitsMatrix[i] = new TMultiGraph(Form("mg_%d",i),Form("String_%d",i+1));
+		mg_hitsMatrix[i] = new TMultiGraph(Form("mg_%d",i),Form("String_%d;Calibrated time [ns]; OM Z position [m]",i+1));
 		nHitsPerString[i] = 0;
 		g_ledMatrix[i] = new TGraph(1);
 		g_ledMatrix[i]->SetPoint(0,matrixTime,position.Z());
@@ -559,6 +559,7 @@ int EventVisualization(BExtractedImpulseTel* impulseTel, TVector3& position, dou
 	}
 	cEvent->cd(9);
 	g_QvsL->Draw("AP");
+	g_QvsL->SetTitle("Charge vs. Distance;Distance from cascade [m]; Charge [FADC channels]");
 	cEvent->Write();
 
 	delete cEvent;
@@ -588,7 +589,7 @@ int ChargeVisualization(int eventID)
 	{
 		g_MeasQ[i] = new TGraph(nHitsPerString[i]);
 		g_ExpQ[i] = new TGraph(nHitsPerString[i]);
-		mg_QSum[i] = new TMultiGraph(Form("mg_%d",i),Form("String_%d",i+1));
+		mg_QSum[i] = new TMultiGraph(Form("mg_%d",i),Form("String_%d; OM ID [#]; Charge [p.e.]",i+1));
 		nHitsPerString[i] = 0;
 	}
 	for(int k = 0; k < g_pulses.size(); k++)
@@ -608,9 +609,9 @@ int ChargeVisualization(int eventID)
 		mg_QSum[i]->Add(g_ExpQ[i],"P");
 		mg_QSum[i]->Draw("AP");
 		g_MeasQ[i]->SetMarkerStyle(20);
-		g_MeasQ[i]->SetMarkerColor(kGreen);
+		g_MeasQ[i]->SetMarkerColor(kBlue);
 		g_ExpQ[i]->SetMarkerStyle(20);
-		g_ExpQ[i]->SetMarkerColor(kBlue);
+		g_ExpQ[i]->SetMarkerColor(kGreen);
 	}
 	cCharge->Write();
 
@@ -870,6 +871,11 @@ int DoTheMagic(TTree* tree, BExtractedImpulseTel* impulseTel)
 			continue;
 		nCloseHitsFilter++;
 		EventVisualization(impulseTel,matrixPosition,matrixTime,i);
+		if (nCloseHitsFilter > 100)
+		{
+			cout << "File was identified as a matrixRun and terminated" << endl;
+			break;
+		}
 		double cascadeEnergy = 0;
 		double cascadeTheta = 0;
 		double cascadePhi = 0;
@@ -880,11 +886,6 @@ int DoTheMagic(TTree* tree, BExtractedImpulseTel* impulseTel)
 			continue;
 		}
 		nLikelihoodFilter++;
-		if (nCloseHitsFilter > 100)
-		{
-			cout << "File was identified as a matrixRun and terminated" << endl;
-			break;
-		}
 		nt_cascades->Fill((double)BARS::App::Run,(double)i,(double)nPulses,(double)nPulsesT,qRatio,(double)closeHits,likelihood,matrixPosition.X(),matrixPosition.Y(),matrixPosition.Z(),matrixTime,cascadeEnergy,cascadeTheta,cascadePhi);
 		FillExpectedCharges(matrixPosition.X(),matrixPosition.Y(),matrixPosition.Z(),cascadeEnergy,cascadeTheta,cascadePhi);
 		ChargeVisualization(i);
@@ -1101,10 +1102,13 @@ void SaveHistograms()
 	delete outputFile;
 }
 
-void ReadLogTable()
+int ReadLogTable()
 {
 	cout << "4D LogTable reading starts" << endl;
 	ifstream fTab ("/Data/BaikalData/showerTable/hq001200_double.dqho2011", ios::in|ios::binary|ios::ate);
+
+	if (!fTab)
+		return -1;
 
 	streampos size = 8;
 	char * memblock = new char[size];
@@ -1128,6 +1132,7 @@ void ReadLogTable()
 	}
 	fTab.close();
 	cout << "LogTable ends" << endl;
+	return 0;
 }
 
 int main(int argc, char** argv) 
@@ -1145,7 +1150,12 @@ int main(int argc, char** argv)
     // const char* filePath = BARS::Data::File(BARS::App::Cluster, BARS::App::Season, BARS::App::Run, BARS::Data::JOINT,"r01_i01_j01_t01");
     const char* filePath = BARS::Data::File(BARS::App::Cluster, BARS::App::Season, BARS::App::Run, BARS::Data::JOINT,gProductionID.c_str());
 
-    ReadLogTable();
+    if (ReadLogTable() == -1)
+    {
+    	std::cout << "Problem with 4D LogLikelihood file!" << std::endl;
+    	return -1;
+    }
+    // ReadLogTable();
 
     if (!BARS::App::FileExists(filePath))
     {
