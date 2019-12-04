@@ -702,7 +702,7 @@ bool CloseHitsFilterPassed(TVector3& matrixPosition, int &closeHits)
 
 	for (int i = 0; i < gNOMs; ++i)
 	{
-		if (gOMQCal[i] != -1 & gOMpositions[i].Z() > matrixPosition.Z()-20 && gOMtimeCal[i] != 0)
+		if (gOMQCal[i] != -1 && gOMpositions[i].Z() > matrixPosition.Z()-20 && gOMtimeCal[i] != 0)
 		{
 			// cout << i << endl;
 			// gOMpositions[i].Print();
@@ -1107,7 +1107,7 @@ int ReadLogTable()
 	cout << "4D LogTable reading starts" << endl;
 	ifstream fTab ("/Data/BaikalData/showerTable/hq001200_double.dqho2011", ios::in|ios::binary|ios::ate);
 
-	if (!fTab)
+	if (!fTab.is_open())
 		return -1;
 
 	streampos size = 8;

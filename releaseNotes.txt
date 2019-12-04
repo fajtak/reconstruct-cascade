@@ -1,4 +1,14 @@
-29.11.2019 - git commit ---
+04.12.2019 - git commit ---
+	* Minor corrections
+
+03.12.2019 - git commit 9f1a0d6847b07ca5d7a3e7136dba78e313a14401
+
+	* default value of the LikelihoodCut increased from 2 -> 2.5
+	* studyReconstructedCascades.C extended significantly. Now it shows also reconstructed energy and theta and also energy and TFilterHits cuts are used
+	* TMultiGraphs in charge and event visualizations have axis labels now
+	* existence of the 4D logLikelihood table is checked
+
+29.11.2019 - git commit 3249e8e195299ca1276254f504876cef53d3f0fb
 	
 	* Loglikelihood for direction and energy reconstruction added
 	* 4D pdf table is read
