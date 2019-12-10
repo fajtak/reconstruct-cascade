@@ -7,7 +7,7 @@
 extern int gNEventsProcessed;
 extern int gVisEventID;
 extern int gNCut;
-extern int gQCut;
+extern double gQCut;
 extern int gQCutHits;
 extern double gQCutChi2;
 extern double gTCutTimeWindowNs;
@@ -19,6 +19,7 @@ extern double gQRatioCut;
 extern int gBranchCut;
 extern double gScatteringCorrection;
 extern double gLikelihoodCut;
+extern bool gMC;
 extern std::string gProductionID;
 
 void parseOpts(int argc, char** argv);

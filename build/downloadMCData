@@ -1,0 +1,10 @@
+#!/bin/bash
+# downloads all joint.event.root files for given year and cluster
+# arguments: year(16,17,18,19), cluster(from zero/0)
+
+for runID in {1001..11200}
+do
+	command=$(printf "%04d" $runID)
+	echo $command
+	rsync -u -v /mnt/cephfs/mc_2016/muatm/muatm_may19_wout/wout/n_cors_n2m_cl2016_x${command}.dat.gz.wout /Data/BaikalData/mc/2018may/ --progress 
+done

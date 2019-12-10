@@ -1,4 +1,16 @@
-04.12.2019 - git commit ---
+10.12.2019 - git commit ---
+	* Huge extension of the whole program. Now MC atmospheric muon bundles can be read and cascades created on the muon tracks can be studied.
+	* Added switch -m with no argument which enables to process MC data
+	* Now the charge of all the pulses is calibrated -> QCut has to be set in p.e.
+	* Added two bash scripts downloadMCData and readMC that downloads MC data and transforms them from wout to root structure
+	* Added root script studyReconstructedMCCascades.C to study reconstructed MC cascades where all the parameters are known
+	* g_pulses now have MCflag member that tels you the origin of the hit
+	* scattering correction and Log(Q) removed from ExpectedTime -> It will be studied in the future
+	* all the filters has been replicated to be able to work with BEvents from MC simulations
+	* output of the program has been extended for RunInfo. Now the number of entries and time duration of the run is printed
+	
+
+04.12.2019 - git commit 3a305382d6f026cf422822e9ddd05ce7a577974a
 	* Minor corrections
 
 03.12.2019 - git commit 9f1a0d6847b07ca5d7a3e7136dba78e313a14401

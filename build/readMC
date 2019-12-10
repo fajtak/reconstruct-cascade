@@ -1,0 +1,15 @@
+#!/bin/bash
+# downloads all joint.event.root files for given year and cluster
+# arguments: year(16,17,18,19), cluster(from zero/0)
+
+for runID in {1001..11000}
+do
+	command=$(printf "%04d" $runID)
+	echo $command
+	
+	if test -f "/Data/BaikalData/mc/2018may/n_cors_n2m_cl2016_x${command}.dat.gz.wout"; then
+		if [ ! -f "/Data/BaikalData/mc/2018may/n_cors_n2m_cl2016_x${command}.root" ]; then
+			../../../build/bin/bexport-mc --in /Data/BaikalData/mc/2018may/n_cors_n2m_cl2016_x${command}.dat.gz.wout --out /Data/BaikalData/mc/2018may/n_cors_n2m_cl2016_x${command}.root	 
+		fi
+	fi
+done

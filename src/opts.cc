@@ -11,7 +11,7 @@
 
 int gNEventsProcessed = -1; 
 int gNCut = -1;
-int gQCut = -1;
+double gQCut = -1;
 int gQCutHits = -1;
 double gQCutChi2 = -1;
 double gTCutTimeWindowNs = -1;
@@ -24,6 +24,7 @@ int gBranchCut = -1;
 int gVisEventID = -1;
 double gScatteringCorrection = 10; //10 ns per 15 meters 
 double gLikelihoodCut = -1;
+bool gMC = false;
 std::string gProductionID = "";
 
 using namespace BARS;
@@ -67,6 +68,16 @@ static const struct App::ProgramOption_t options_list[]{
 		},
 		NOT_REQUIRED
 	},
+	{
+		{
+			"mc", 'm',
+			no_argument,
+			"use mc data as the input for the program",
+			[](char* argv) {gMC = true;},
+			[]() {;}
+		},
+		NOT_REQUIRED
+	},
   // !!! must be at the end
 	{App::opt_NULL, NOT_REQUIRED}
 };
@@ -81,7 +92,7 @@ void readRC(const char* rcpath)
 		exit(1);
 	}
 	gNCut = env.GetValue("NCut", 70);
-	gQCut = env.GetValue("QCut", 2000);
+	gQCut = env.GetValue("QCut", 15.0);
 	gQCutHits = env.GetValue("QCutHits", 6);
 	gQCutChi2 = env.GetValue("QCutChi2", 50);
 	gTCutTimeWindowNs = env.GetValue("TCutTimeWindowNs", 50);
