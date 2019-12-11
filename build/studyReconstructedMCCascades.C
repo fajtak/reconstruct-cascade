@@ -31,6 +31,7 @@ int studyReconstructedMCCascades(int year = 2016, int cluster = 0)
 	TChain reconstructedCascades("nt_cascades");
 
 	TString filesDir = "/Data/BaikalData/mc/2018may/recCasc_nTuple.root";
+	// TString filesDir = "/Data/BaikalData/mc/nuatm_feb19/recCasc_nTuple.root";
 
 
 	setStringPositions(cluster);
@@ -73,13 +74,13 @@ int studyReconstructedMCCascades(int year = 2016, int cluster = 0)
 	TH1F* h_nHits = new TH1F("h_nHits","Number of hits created by cascade;NHits [#];NoE [#]",100,0,100);
 	TH1F* h_X = new TH1F("h_X","X positions of reconstructed cascades",2000,-1000,1000);
 	TH1F* h_Y = new TH1F("h_Y","Y positions of reconstructed cascades",2000,-1000,1000);
-	TH1F* h_energy = new TH1F("h_energy","Cascades Energy;Energy [TeV];NoE [#]",200,0,2000);
+	TH1F* h_energy = new TH1F("h_energy","Cascades Energy;Energy [TeV];NoE [#]",2000,0,2000);
 	TH1F* h_zenith = new TH1F("h_zenith","Zenith angle;Theta [degree];NoE [#]",180,0,180);
 	TH1F* h_mismatchPosition = new TH1F("h_mismatchPosition","Mismatch Position;Distance [m];NoE [#]",100,0,100);
 	TH1F* h_mismatchPosLong = new TH1F("h_mismatchPosLong","Mismatch Position Longitudinal Direction;Distance [m];NoE [#]",100,0,100);
 	TH1F* h_mismatchPosPerp = new TH1F("h_mismatchPosPerp","Mismatch Position Perpendicular Direction;Distance [m];NoE [#]",100,0,100);
 	TH1F* h_mismatchAngle = new TH1F("h_mismatchAngle","Mismatch angle;Mismatch angle [deg];NoE [#]",360,0,360);
-	TH1F* h_mismatchEnergy = new TH1F("h_mismatchEnergy","Mismatch energy; E_{rec}/E_{true} [#];NoE [#]",100,0,1);
+	TH1F* h_mismatchEnergy = new TH1F("h_mismatchEnergy","Mismatch energy; E_{rec}/E_{true} [#];NoE [#]",500,0,5);
 	TH1F* h_mismatchEnergyLog = new TH1F("h_mismatchEnergyLog","Mismatch energy; log10(E_{rec}/E_{true}) [#];NoE [#]",100,-1,1);
 
 	TH2F* h_mismatchAngleEnergy = new TH2F("h_,h_mismatchAngleEnergy","Mismatch angle vs. cascade Energy;Cascade energy [TeV];Mismatch angle [deg]",1000,0,1000,360,0,360);
@@ -92,7 +93,7 @@ int studyReconstructedMCCascades(int year = 2016, int cluster = 0)
 	{
 		reconstructedCascades.GetEntry(i);
 		double mismatchPosition = TMath::Sqrt(TMath::Power(trueX-X,2)+TMath::Power(trueY-Y,2)+TMath::Power(trueZ-Z,2));
-		if (likelihood != -1)
+		if (likelihood != -1 && cascadePurity == 1)
 		{
 			h_mismatchPosition->Fill(mismatchPosition);			
 			TVector3 posTrue(trueX,trueY,trueZ);
@@ -116,6 +117,8 @@ int studyReconstructedMCCascades(int year = 2016, int cluster = 0)
 			h_eventPurity->Fill(eventPurity);
 			h_cascadePurity->Fill(cascadePurity);
 
+			h_energy->Fill(trueEnergy);
+
 			cout << theta << " " << trueTheta << " " << (theta-trueTheta)/TMath::Pi()*180 << " " << phi << " " << truePhi << " " << (phi-truePhi)/TMath::Pi()*180 << endl;
 
 			// if (mismatchPosition > 10)
@@ -125,7 +128,7 @@ int studyReconstructedMCCascades(int year = 2016, int cluster = 0)
 			// }
 		}
 		
-		if (Z < 560 && likelihood != -1)
+		if (0 && Z < 560 && likelihood != -1)
 		{
 			cascadePositions->SetPoint(i,X,Y);
 			zRhoPositions->SetPoint(i,TMath::Sqrt(TMath::Power(X-stringXPositions[7],2)+TMath::Power(Y-stringYPositions[7],2)),Z);
@@ -174,8 +177,8 @@ int studyReconstructedMCCascades(int year = 2016, int cluster = 0)
 	// NvsEnergy->SetMarkerStyle(21);
 	// NvsEnergy->Draw("AP");	
 
-	// TCanvas* c_energy = new TCanvas("c_energy","Results",800,600);
-	// h_energy->Draw();
+	TCanvas* c_energy = new TCanvas("c_energy","Results",800,600);
+	h_energy->Draw();
 
 	// TCanvas* c_theta = new TCanvas("c_theta","Results",800,600);
 	// h_zenith->Draw();

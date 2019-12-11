@@ -25,6 +25,7 @@
 #include "BGeomTel.h"
 #include "BEvoGeomApply.h"
 #include "BEvent.h"
+#include "BImpulse.h"
 #include "BGeomTelMC.h"
 #include "BEventMask.h"
 #include "BSource.h"
@@ -303,7 +304,7 @@ double FitMatrixPosition(TVector3 &R2, double &T2)
 	fMinuit->SetParameter(0,"LED X",R2.X(),1,-750,750); //estimation of start point
 	fMinuit->SetParameter(1,"LED Y",R2.Y(),1,-750,750);
 	fMinuit->SetParameter(2,"LED Z",R2.Z(),1,-750,750);
-	if (!gMC)
+	if (!gMCMu && !gMCNu)
 		fMinuit->SetParameter(3,"Time",T2,1,14000,17000);
 	else
 		fMinuit->SetParameter(3,"Time",T2,1,500,1600);
@@ -442,6 +443,25 @@ bool OMIDAlreadyInGPulses(BExtractedImpulse* impulse)
 	return OMIDAlreadyIn;
 }
 
+bool OMIDAlreadyInGPulses(BImpulse* impulse)
+{
+	bool OMIDAlreadyIn = false;
+	for (int k = 0; k < g_pulses.size(); ++k)
+	{
+		if (g_pulses[k].OMID == impulse->Channel())
+		{
+			if (g_pulses[k].charge < impulse->Q())
+			{
+				g_pulses[k].charge = impulse->Q();
+				g_pulses[k].time = impulse->T();
+			}
+			OMIDAlreadyIn = true;
+			break;
+		}
+	}
+	return OMIDAlreadyIn;
+}
+
 bool QFilterPassed(BExtractedImpulseTel* impulseTel)
 {
 	g_pulses.clear();
@@ -475,6 +495,8 @@ bool QFilterPassed(BEvent* event)
 		// cout << i << " " << impulseTel->GetNch(i) << " " << impulseTel->GetQ(i) << " " << impulseTel->GetT(i) << endl;
 		if (event->Q(i) > gQCut)
 		{
+			if (OMIDAlreadyInGPulses(event->GetImpulse(i)))
+				continue;
 			nPulsesWithHigherCharge++;
 			g_pulses.push_back(PulsesVariables{event->HitChannel(i),event->T(i),event->Q(i)});
 		}
@@ -532,8 +554,8 @@ bool TFilterPassed(BEvent* event, BEventMaskMC* eventMask, TVector3& matrixPosit
 	        h_timeRes->Fill(event->T(i) - expectedTime);
 	        if(event->T(i) >= expectedTime-gTCutTimeWindowNs && event->T(i) <= expectedTime + gTCutTimeWindowNs)
 	        {
-	        	// if (OMIDAlreadyInGPulses(impulseTel->At(i)))
-	        		// continue;
+	        	if (OMIDAlreadyInGPulses(event->GetImpulse(i)))
+	        		continue;
 	        	g_pulses.push_back(PulsesVariables{event->HitChannel(i),event->T(i),event->Q(i),0,eventMask->GetFlag(i)});
 	        	nPulses++;
 	        }
@@ -1332,24 +1354,21 @@ int ReadQCal(void)
     inputFile.close();
 }
 
-void SaveHistograms(bool isMC = false)
+void SaveHistograms()
 {
 	TString outputFileName = "";
-	TFile* outputFile;
 
-	if (!isMC)
-	{
-		outputFileName += BARS::Data::Directory(BARS::App::Cluster, BARS::App::Season, BARS::App::Run, BARS::Data::JOINT, gProductionID.c_str());
-		outputFileName += "recCasc_hist.root";
-		outputFile = new TFile(outputFileName,"RECREATE");
-	}
+	if (!gMCMu && !gMCNu)
+		outputFileName = BARS::Data::Directory(BARS::App::Cluster, BARS::App::Season, BARS::App::Run, BARS::Data::JOINT, gProductionID.c_str());
 
-	if (isMC)
-	{
+	if (gMCMu)
 		outputFileName = "/Data/BaikalData/mc/2018may/";
-		outputFileName += "recCasc_hist.root";
-		outputFile = new TFile(outputFileName,"RECREATE");
-	}
+
+	if (gMCNu)
+		outputFileName = "/Data/BaikalData/mc/nuatm_feb19/";
+
+	outputFileName += "recCasc_hist.root";
+	TFile* outputFile = new TFile(outputFileName,"RECREATE");
 
 	h_nHits->Write();
 	h_chargePerHit->Write();
@@ -1582,13 +1601,25 @@ int EvalPurityEfficiency(BEventMaskMC* eventMask, int flagID, double &efficiency
 
 int DoTheMagicMC(TChain* tree, BEvent* event, BEventMaskMC* eventMask, BSourceEAS* mcEvent)
 {
-	TString outputFileName2 = "/Data/BaikalData/mc/2018may/";
+
+	TString outputFileName2 = "";
+	TString outputFileName = "";
+	if (gMCMu)
+	{
+		outputFileName2 = "/Data/BaikalData/mc/2018may/";
+		outputFileName = "/Data/BaikalData/mc/2018may/";
+	}
+	if (gMCNu)
+	{
+		outputFileName2 = "/Data/BaikalData/mc/nuatm_feb19/";
+		outputFileName = "/Data/BaikalData/mc/nuatm_feb19/";
+	}
+
 	outputFileName2 += "recCasc_nTuple.root";
 	TFile* outputFile2 = new TFile(outputFileName2,"RECREATE");
 
    	TNtuple* nt_cascades = new TNtuple("nt_cascades","NTuple of reconstructed cascades",TString("runID:EventID:NPulses:NPulsesT:QRatio:CloseHits:Likelihood:X:Y:Z:Time:Energy:Theta:Phi:TrueX:TrueY:TrueZ:TrueEnergy:TrueTheta:TruePhi:Efficiency:EventPurity:CascadePurity"));
 
-	TString outputFileName = "/Data/BaikalData/mc/2018may/";
 	outputFileName += "recCasc_vis.root";
 	TFile* outputFile = new TFile(outputFileName,"RECREATE");
 
@@ -1757,11 +1788,26 @@ int ReadGeometryMC(TFile* file)
 int processMCData()
 {
 	TChain* mcFiles = new TChain("Events");
+	const char* filePath = " ";
 
-	mcFiles->Add("/Data/BaikalData/mc/2018may/n_cors_n2m_cl2016_x*.root");
+	if (gMCNu && gMCMu)
+	{
+		cout << "ERROR: You can't process both MC neutrinos and MC muons at once!" << endl;
+		return -1;
+	}
 
-	const char* filePath = "/Data/BaikalData/mc/2018may/n_cors_n2m_cl2016_x1001.root";
+	if (gMCMu)
+	{
+		mcFiles->Add("/Data/BaikalData/mc/2018may/n_cors_n2m_cl2016_x*.root");
+		filePath = "/Data/BaikalData/mc/2018may/n_cors_n2m_cl2016_x1001.root";
+	}
+	if (gMCNu)
+	{
+		mcFiles->Add("/Data/BaikalData/mc/nuatm_feb19/n_nuatm_gs_n2m_cl2016_x*.root");	
+		filePath = "/Data/BaikalData/mc/nuatm_feb19/n_nuatm_gs_n2m_cl2016_x1001.root";
+	}
 
+	
 	TFile* file = new TFile(filePath,"READ");
     // TTree* tree = (TTree*)file->Get("Events");
 
@@ -1790,7 +1836,7 @@ int processMCData()
 	}
 
     DoTheMagicMC(mcFiles,event,eventMask,mcEvent);
-	SaveHistograms(kTRUE);
+	SaveHistograms();
 
     return 0;
 }
@@ -1801,7 +1847,7 @@ int main(int argc, char** argv)
     App::Init(argc, argv, 0, parseOpts, readRC, checkParams);
     SetFitter();
 
-    if (!gMC)
+    if (!gMCMu && !gMCNu)
     	processExperimentalData();
     else
 	    processMCData();

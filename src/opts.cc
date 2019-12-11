@@ -24,7 +24,8 @@ int gBranchCut = -1;
 int gVisEventID = -1;
 double gScatteringCorrection = 10; //10 ns per 15 meters 
 double gLikelihoodCut = -1;
-bool gMC = false;
+bool gMCMu = false;
+bool gMCNu = false;
 std::string gProductionID = "";
 
 using namespace BARS;
@@ -70,10 +71,20 @@ static const struct App::ProgramOption_t options_list[]{
 	},
 	{
 		{
-			"mc", 'm',
+			"mcMu", 'm',
 			no_argument,
-			"use mc data as the input for the program",
-			[](char* argv) {gMC = true;},
+			"use mc atmospheric muon bundles data as the input for the program",
+			[](char* argv) {gMCMu = true;},
+			[]() {;}
+		},
+		NOT_REQUIRED
+	},
+	{
+		{
+			"mcNu", 'u',
+			no_argument,
+			"use mc up-going single muons data as the input for the program",
+			[](char* argv) {gMCNu = true;},
 			[]() {;}
 		},
 		NOT_REQUIRED

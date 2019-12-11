@@ -1,4 +1,9 @@
-10.12.2019 - git commit ---
+11.12.2019 - git commit ---
+	* new switch "u" to process MC single up-going atmospheric neutrinos
+	* added two new bash scripts to download and read MC single up-going atmospheric neutrinos (downloadDataNu and readMCNu)
+	* added function OMIDAlreadyInGPulses for MC data
+
+10.12.2019 - git commit 45278b764bf40181994348579a0ee4cec64fa917
 	* Huge extension of the whole program. Now MC atmospheric muon bundles can be read and cascades created on the muon tracks can be studied.
 	* Added switch -m with no argument which enables to process MC data
 	* Now the charge of all the pulses is calibrated -> QCut has to be set in p.e.
@@ -8,7 +13,7 @@
 	* scattering correction and Log(Q) removed from ExpectedTime -> It will be studied in the future
 	* all the filters has been replicated to be able to work with BEvents from MC simulations
 	* output of the program has been extended for RunInfo. Now the number of entries and time duration of the run is printed
-	
+
 
 04.12.2019 - git commit 3a305382d6f026cf422822e9ddd05ce7a577974a
 	* Minor corrections

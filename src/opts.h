@@ -19,7 +19,8 @@ extern double gQRatioCut;
 extern int gBranchCut;
 extern double gScatteringCorrection;
 extern double gLikelihoodCut;
-extern bool gMC;
+extern bool gMCMu;
+extern bool gMCNu;
 extern std::string gProductionID;
 
 void parseOpts(int argc, char** argv);
