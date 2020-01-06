@@ -30,7 +30,8 @@ int studyReconstructedMCCascades(int year = 2016, int cluster = 0)
 {
 	TChain reconstructedCascades("nt_cascades");
 
-	TString filesDir = "/Data/BaikalData/mc/2018may/recCasc_nTuple.root";
+	// TString filesDir = "/Data/BaikalData/mc/2018may/recCasc_nTuple.root";
+	TString filesDir = "/Data/BaikalData/mc/DZH_cascades/recCasc_nTuple.root";
 	// TString filesDir = "/Data/BaikalData/mc/nuatm_feb19/recCasc_nTuple.root";
 
 
@@ -83,17 +84,23 @@ int studyReconstructedMCCascades(int year = 2016, int cluster = 0)
 	TH1F* h_mismatchEnergy = new TH1F("h_mismatchEnergy","Mismatch energy; E_{rec}/E_{true} [#];NoE [#]",500,0,5);
 	TH1F* h_mismatchEnergyLog = new TH1F("h_mismatchEnergyLog","Mismatch energy; log10(E_{rec}/E_{true}) [#];NoE [#]",100,-1,1);
 
+	TH1F* h_mismatchX = new TH1F("h_mismatchX","Mismatch in X direction",1000,-500,500);
+	TH1F* h_mismatchY = new TH1F("h_mismatchY","Mismatch in Y direction",1000,-500,500);
+	TH1F* h_mismatchZ = new TH1F("h_mismatchZ","Mismatch in Z direction",1000,-500,500);
+
 	TH2F* h_mismatchAngleEnergy = new TH2F("h_,h_mismatchAngleEnergy","Mismatch angle vs. cascade Energy;Cascade energy [TeV];Mismatch angle [deg]",1000,0,1000,360,0,360);
 
 	TH1F* h_efficiency = new TH1F("h_efficiency","Hit selection efficiency;Efficiency [%];NoE [#]",120,0,1.2);
 	TH1F* h_eventPurity = new TH1F("h_eventPurity","Event purity [%]; NoE [#]",120,0,1.2);
 	TH1F* h_cascadePurity = new TH1F("h_cascadePurity","Cascade purity [%]; NoE [#]",120,0,1.2);
 
+	TH1F* h_cascadeTime = new TH1F("h_cascadeTime","Cascade time;Cascade time [ns]",1000,-500,500);
+
 	for (int i = 0; i < reconstructedCascades.GetEntries(); ++i)
 	{
 		reconstructedCascades.GetEntry(i);
 		double mismatchPosition = TMath::Sqrt(TMath::Power(trueX-X,2)+TMath::Power(trueY-Y,2)+TMath::Power(trueZ-Z,2));
-		if (likelihood != -1 && cascadePurity == 1)
+		if (likelihood != -1 && trueEnergy < 2000)
 		{
 			h_mismatchPosition->Fill(mismatchPosition);			
 			TVector3 posTrue(trueX,trueY,trueZ);
@@ -111,6 +118,10 @@ int studyReconstructedMCCascades(int year = 2016, int cluster = 0)
 			h_mismatchAngle->Fill(cascDirRec.Angle(cascDirTrue)/TMath::Pi()*180);
 			h_mismatchAngleEnergy->Fill(trueEnergy,cascDirRec.Angle(cascDirTrue)/TMath::Pi()*180);
 
+			h_mismatchX->Fill(X-trueX);
+			h_mismatchY->Fill(Y-trueY);
+			h_mismatchZ->Fill(Z-trueZ);
+
 			h_mismatchEnergyLog->Fill(TMath::Log10(energy/trueEnergy));
 			h_mismatchEnergy->Fill(energy/trueEnergy);
 			h_efficiency->Fill(efficiency);
@@ -118,8 +129,9 @@ int studyReconstructedMCCascades(int year = 2016, int cluster = 0)
 			h_cascadePurity->Fill(cascadePurity);
 
 			h_energy->Fill(trueEnergy);
+			h_cascadeTime->Fill(time);
 
-			cout << theta << " " << trueTheta << " " << (theta-trueTheta)/TMath::Pi()*180 << " " << phi << " " << truePhi << " " << (phi-truePhi)/TMath::Pi()*180 << endl;
+			// cout << theta << " " << trueTheta << " " << (theta-trueTheta)/TMath::Pi()*180 << " " << phi << " " << truePhi << " " << (phi-truePhi)/TMath::Pi()*180 << endl;
 
 			// if (mismatchPosition > 10)
 			// {
@@ -231,6 +243,19 @@ int studyReconstructedMCCascades(int year = 2016, int cluster = 0)
 	c_effPur->cd(3);
 	h_cascadePurity->Draw();
 	c_effPur->cd(4);
+
+	TCanvas* c_mismatchXYZ = new TCanvas("c_mismatchXYZ","Results",800,600);
+	c_mismatchXYZ->Divide(2,2);
+	c_mismatchXYZ->cd(1);
+	h_mismatchX->Draw();
+	c_mismatchXYZ->cd(2);
+	h_mismatchY->Draw();
+	c_mismatchXYZ->cd(3);
+	h_mismatchZ->Draw();
+	c_mismatchXYZ->cd(4);
+
+	TCanvas* c_cascadeTime = new TCanvas("c_cascadeTime","Results",800,600);
+	h_cascadeTime->Draw();
 
 	return 1;
 }

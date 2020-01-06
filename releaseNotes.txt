@@ -1,4 +1,15 @@
-11.12.2019 - git commit ---
+06.01.2019 - git commit ---
+	* new switch "a" to process Zhan-Arys MC cascades
+	* values in the config.rc changed and branchCut and likelihoodCut values added
+	* in studyReconstructedMCCascades.C script added a new histograms for position mismatch
+	* added config file configDZH.rc for processing of the simulated cascades
+	* logLikelihood fitting CORRECTED!!!
+	* the first fit in the chain is again chi2
+	* to guess initial fitiing time and position a grid of positions around detector are tested and value with smallest chi2 is used.
+	* added all the filters for MCcascades
+	* New file with MCcascade geometry added array2016_phys_kebkal.dat
+
+11.12.2019 - git commit beab71ada52335628d4c038c20800208197f2902
 	* new switch "u" to process MC single up-going atmospheric neutrinos
 	* added two new bash scripts to download and read MC single up-going atmospheric neutrinos (downloadDataNu and readMCNu)
 	* added function OMIDAlreadyInGPulses for MC data

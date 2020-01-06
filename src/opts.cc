@@ -26,6 +26,7 @@ double gScatteringCorrection = 10; //10 ns per 15 meters
 double gLikelihoodCut = -1;
 bool gMCMu = false;
 bool gMCNu = false;
+bool gMCCas = false;
 std::string gProductionID = "";
 
 using namespace BARS;
@@ -85,6 +86,16 @@ static const struct App::ProgramOption_t options_list[]{
 			no_argument,
 			"use mc up-going single muons data as the input for the program",
 			[](char* argv) {gMCNu = true;},
+			[]() {;}
+		},
+		NOT_REQUIRED
+	},
+	{
+		{
+			"mcCas", 'a',
+			no_argument,
+			"use mc cascade data from Zhan-Arys as the input for the program",
+			[](char* argv) {gMCCas = true;},
 			[]() {;}
 		},
 		NOT_REQUIRED

@@ -21,6 +21,7 @@ extern double gScatteringCorrection;
 extern double gLikelihoodCut;
 extern bool gMCMu;
 extern bool gMCNu;
+extern bool gMCCas;
 extern std::string gProductionID;
 
 void parseOpts(int argc, char** argv);

@@ -1,12 +1,12 @@
-NCut 60
+NCut 10
 QCut 3.5
 QCutHits 6
-QCutChi2 5
+QCutChi2 2000
 TCutTimeWindowNs 50
 TCutHits 10
 TCutChi2 5
 ZCut 600
-TDelayCut 400
+TDelayCut 600
 QRatioCut 70
 BranchCut 1
 LikelihoodCut 10
