@@ -1268,8 +1268,8 @@ int DoTheMagic(TTree* tree, BExtractedImpulseTel* impulseTel)
 		double matrixTime = 0;
 		EstimateInitialMatrixPositionMC(matrixPosition,matrixTime);
 		// matrixPosition.Print();
-		fMinuit->SetFCN(chi2);
-		// fMinuit->SetFCN(MEstimator);
+		// fMinuit->SetFCN(chi2);
+		fMinuit->SetFCN(MEstimator);
 		double chi2QResult = FitMatrixPosition(matrixPosition,matrixTime);
 		// matrixPosition.Print();
 		h_chi2AfterQ->Fill(chi2QResult);
@@ -1313,7 +1313,7 @@ int DoTheMagic(TTree* tree, BExtractedImpulseTel* impulseTel)
 		double cascadeTheta = 0;
 		double cascadePhi = 0;
 		double likelihood = 0;
-		// cout << i << endl;
+		cout << i << endl;
 		if (!LikelihoodFilterPassed(matrixPosition,matrixTime,cascadeEnergy,cascadeTheta,cascadePhi,likelihood))
 		{
 			nt_cascades->Fill((double)BARS::App::Run,(double)i,(double)nPulses,(double)nPulsesT,qRatio,(double)closeHits,-1,matrixPosition.X(),matrixPosition.Y(),matrixPosition.Z(),matrixTime,0,0,0);

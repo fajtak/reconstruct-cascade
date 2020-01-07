@@ -1,4 +1,7 @@
-07.07.2019 - git commit ---
+07.07.2019 - git commit
+	* The first fit is again done with MEstimator
+
+07.07.2019 - git commit 59abf51237727bee7d64a0d359a150a18885dab5
 	* SetFCN(chi2) added before the first fit
 
 06.01.2019 - git commit 5de116f1f39ea6afe1c0239300e9856d28edb4f4
