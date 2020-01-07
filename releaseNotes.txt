@@ -1,4 +1,7 @@
-06.01.2019 - git commit ---
+07.07.2019 - git commit ---
+	* SetFCN(chi2) added before the first fit
+
+06.01.2019 - git commit 5de116f1f39ea6afe1c0239300e9856d28edb4f4
 	* new switch "a" to process Zhan-Arys MC cascades
 	* values in the config.rc changed and branchCut and likelihoodCut values added
 	* in studyReconstructedMCCascades.C script added a new histograms for position mismatch

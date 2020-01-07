@@ -235,9 +235,9 @@ void MEstimator(Int_t &npar, Double_t* gin, Double_t &f, Double_t* par, Int_t if
 void GetParameters(const Double_t* cascadeParameters,const int OMID, double* tableParameters)
 {
 	TVector3 OMpos(gOMpositions[OMID].X()-cascadeParameters[0],gOMpositions[OMID].Y()-cascadeParameters[1],gOMpositions[OMID].Z()-cascadeParameters[2]);
-	cout << gOMpositions[OMID].X() << " " << gOMpositions[OMID].Y() << " " << gOMpositions[OMID].Z() << endl;
-	cout << cascadeParameters[0] << " " << cascadeParameters[1] << " " << cascadeParameters[2] << endl;
-	OMpos.Print();
+	// cout << gOMpositions[OMID].X() << " " << gOMpositions[OMID].Y() << " " << gOMpositions[OMID].Z() << endl;
+	// cout << cascadeParameters[0] << " " << cascadeParameters[1] << " " << cascadeParameters[2] << endl;
+	// OMpos.Print();
 
 	TVector3 showerRef(0,0,1);
 	showerRef.SetTheta(cascadeParameters[5] - TMath::Pi());
@@ -248,12 +248,12 @@ void GetParameters(const Double_t* cascadeParameters,const int OMID, double* tab
 	tableParameters[0] = OMpos.Perp(showerRef);
 	tableParameters[1] = OMpos*showerRef;
 
-	cout << "New" << endl;
+	// cout << "New" << endl;
 	TVector3 y = OMpos.Cross(showerRef);
-	y.Print();
+	// y.Print();
 	y.SetMag(1.0);
 	TVector3 x = OMpos.Cross(y);
-	x.Print();
+	// x.Print();
 	x.SetMag(1.0);
 
 	// tableParameters[3] = rhoProjection.Angle(omegaProjection);
@@ -261,7 +261,7 @@ void GetParameters(const Double_t* cascadeParameters,const int OMID, double* tab
 	tableParameters[3] = OMpos*OMorien/OMpos.Mag();
 
 	TVector3 par = OMpos;
-	par.Print();
+	// par.Print();
 	par.SetMag(OMpos*OMorien/OMpos.Mag());
 	TVector3 phi = OMorien - par;
 
@@ -1262,12 +1262,16 @@ int DoTheMagic(TTree* tree, BExtractedImpulseTel* impulseTel)
 			continue;
 		nQFilter++;
 
+		// cout << i << endl;
 		//initialization of R and T for LED matrix
 		TVector3 matrixPosition(0,0,0); 
 		double matrixTime = 0;
 		EstimateInitialMatrixPositionMC(matrixPosition,matrixTime);
+		// matrixPosition.Print();
+		fMinuit->SetFCN(chi2);
 		// fMinuit->SetFCN(MEstimator);
 		double chi2QResult = FitMatrixPosition(matrixPosition,matrixTime);
+		// matrixPosition.Print();
 		h_chi2AfterQ->Fill(chi2QResult);
 		if (chi2QResult > gQCutChi2)
 			continue;
@@ -1277,6 +1281,7 @@ int DoTheMagic(TTree* tree, BExtractedImpulseTel* impulseTel)
 		nTFilter++;
 		fMinuit->SetFCN(chi2);
 		double chi2TResult = FitMatrixPosition(matrixPosition,matrixTime);
+		// matrixPosition.Print();
 		h_chi2AfterT->Fill(chi2TResult);
 		if (chi2TResult > gTCutChi2)
 			continue;
@@ -1308,6 +1313,7 @@ int DoTheMagic(TTree* tree, BExtractedImpulseTel* impulseTel)
 		double cascadeTheta = 0;
 		double cascadePhi = 0;
 		double likelihood = 0;
+		// cout << i << endl;
 		if (!LikelihoodFilterPassed(matrixPosition,matrixTime,cascadeEnergy,cascadeTheta,cascadePhi,likelihood))
 		{
 			nt_cascades->Fill((double)BARS::App::Run,(double)i,(double)nPulses,(double)nPulsesT,qRatio,(double)closeHits,-1,matrixPosition.X(),matrixPosition.Y(),matrixPosition.Z(),matrixTime,0,0,0);
