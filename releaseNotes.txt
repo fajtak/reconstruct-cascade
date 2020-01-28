@@ -1,10 +1,17 @@
-07.07.2019 - git commit
+28.01.2020 - git commit ---
+	* The nonHit term added to the logLikelihood fitting
+	* the initial position and time estimation again based on the highest Q OM
+	* charge visualization extended to show expected charge on all OMs
+	* initDist and FinalDist added to the nTuples for MC data
+	* time of processing added
+
+07.01.2020 - git commit 41a7cc590aca373748dffa028379057e85b296fe
 	* The first fit is again done with MEstimator
 
-07.07.2019 - git commit 59abf51237727bee7d64a0d359a150a18885dab5
+07.01.2020 - git commit 59abf51237727bee7d64a0d359a150a18885dab5
 	* SetFCN(chi2) added before the first fit
 
-06.01.2019 - git commit 5de116f1f39ea6afe1c0239300e9856d28edb4f4
+06.01.2020 - git commit 5de116f1f39ea6afe1c0239300e9856d28edb4f4
 	* new switch "a" to process Zhan-Arys MC cascades
 	* values in the config.rc changed and branchCut and likelihoodCut values added
 	* in studyReconstructedMCCascades.C script added a new histograms for position mismatch
