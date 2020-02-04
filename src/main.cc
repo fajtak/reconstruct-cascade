@@ -17,6 +17,7 @@
 #include "TMath.h"
 #include "TNtuple.h"
 #include "TChain.h"
+#include "TRandom2.h"
 
 //BARS dependencies
 #include "BARS.h"
@@ -29,6 +30,8 @@
 #include "BGeomTelMC.h"
 #include "BEventMask.h"
 #include "BSource.h"
+
+using namespace std;
 
 TVirtualFitter* fMinuit;
 
@@ -53,9 +56,9 @@ struct PulsesVariables
 
 struct mcCascade
 {
-	int eventID, nHits;
-	float showerEnergy, cosTheta, phi, position[3], charge[288], time[288];
-	unsigned short chID[288];
+	int eventID, nHits, nNoiseHits;
+	float showerEnergy, cosTheta, phi, position[3], charge[288], time[288], noiseCharge[1000], noiseTime[1000];
+	unsigned short chID[288], noiseChID[1000];
 };
 
 vector<PulsesVariables> g_pulses; //global vector of PulsesVariables
@@ -71,7 +74,8 @@ void PrintGPulses()
 using namespace BARS;
 
 TH1F* h_nHits = new TH1F("h_nHits","Number of hits;Hits [#]; NoE [#]",200,0,200);
-TH1F* h_chargePerHit = new TH1F("h_chargePerHit","Charge per hit;Q [FADC];NoE [#]",1000,0,1000);
+TH1F* h_chargePerHit = new TH1F("h_chargePerHit","Charge per hit;Q [p.e.];NoE [#]",1000,0,1000);
+TH1F* h_chargePerEvent = new TH1F("h_chargePerEvent","Charge per event;Q [p.e.];NoE [#]",1000,0,10000);
 TH1F* h_nHitsAfterQ = new TH1F("h_nHitsAfterQ","Number of hits after Q Filter; Nhits [#];NoE [#]",20,0,20);
 TH1F* h_chi2AfterQ = new TH1F("h_chi2AfterQ","Chi2 after Q Filter; chi^2 [#];NoE [#]",1000,0,10000);
 TH1F* h_nHitsAfterT = new TH1F("h_nHitsAfterT","Number of hits after T Filter; NHits [#];NoE [#]",100,0,100);
@@ -472,9 +476,9 @@ bool NFilterPassed(BEvent* event, int &nPulses)
 
 bool NFilterPassed(mcCascade* cascade, int &nPulses)
 {
-	nPulses = cascade->nHits;
+	nPulses = cascade->nHits+cascade->nNoiseHits;
 	h_nHits->Fill(nPulses);
-	if (cascade->nHits >= gNCut)
+	if (nPulses >= gNCut)
 	{
 		return true;
 	}
@@ -519,13 +523,15 @@ bool OMIDAlreadyInGPulses(BImpulse* impulse)
 	return OMIDAlreadyIn;
 }
 
-bool QFilterPassed(BExtractedImpulseTel* impulseTel)
+bool QFilterPassed(BExtractedImpulseTel* impulseTel, double &overallCharge)
 {
 	g_pulses.clear();
 	int nPulsesWithHigherCharge = 0;
+	overallCharge = 0;
 	for (int i = 0; i < impulseTel->GetNimpulse(); ++i)
 	{
-		h_chargePerHit->Fill(impulseTel->GetQ(i));
+		h_chargePerHit->Fill(impulseTel->GetQ(i)/gOMQCal[impulseTel->GetNch(i)]);
+		overallCharge += impulseTel->GetQ(i)/gOMQCal[impulseTel->GetNch(i)];
 		// cout << i << " " << impulseTel->GetNch(i) << " " << impulseTel->GetQ(i) << " " << impulseTel->GetT(i) << endl;
 		if (impulseTel->GetQ(i)/gOMQCal[impulseTel->GetNch(i)] > gQCut && gOMtimeCal[impulseTel->GetNch(i)] != 0)
 		{
@@ -536,7 +542,8 @@ bool QFilterPassed(BExtractedImpulseTel* impulseTel)
 		}
 	}
 	h_nHitsAfterQ->Fill(nPulsesWithHigherCharge);
-	if (nPulsesWithHigherCharge >= gQCutHits)
+	h_chargePerEvent->Fill(overallCharge);
+	if (nPulsesWithHigherCharge >= gQCutHits && overallCharge > 250)
 		return true;
 	else
 		return false;
@@ -571,14 +578,26 @@ bool QFilterPassed(mcCascade* cascade)
 	int nPulsesWithHigherCharge = 0;
 	for (int i = 0; i < cascade->nHits; ++i)
 	{
-		h_chargePerHit->Fill(cascade->charge[cascade->chID[i]]);
+		h_chargePerHit->Fill(cascade->charge[cascade->chID[i]-1]);
 		// cout << i << " " << impulseTel->GetNch(i) << " " << impulseTel->GetQ(i) << " " << impulseTel->GetT(i) << endl;
-		if (cascade->charge[cascade->chID[i]] > gQCut)
+		if (cascade->charge[cascade->chID[i]-1] > gQCut)
 		{
 			// if (OMIDAlreadyInGPulses(event->GetImpulse(i)))
 				// continue;
 			nPulsesWithHigherCharge++;
-			g_pulses.push_back(PulsesVariables{cascade->chID[i]-1,cascade->time[cascade->chID[i]],cascade->charge[cascade->chID[i]]});
+			g_pulses.push_back(PulsesVariables{cascade->chID[i]-1,cascade->time[cascade->chID[i]-1],cascade->charge[cascade->chID[i]-1]});
+		}
+	}
+	for (int i = 0; i < cascade->nNoiseHits; ++i)
+	{
+		h_chargePerHit->Fill(cascade->noiseCharge[i]);
+		// cout << i << " " << impulseTel->GetNch(i) << " " << impulseTel->GetQ(i) << " " << impulseTel->GetT(i) << endl;
+		if (cascade->noiseCharge[i] > gQCut)
+		{
+			// if (OMIDAlreadyInGPulses(event->GetImpulse(i)))
+				// continue;
+			nPulsesWithHigherCharge++;
+			g_pulses.push_back(PulsesVariables{cascade->noiseChID[i],cascade->noiseTime[i],cascade->noiseCharge[i]});
 		}
 	}
 	h_nHitsAfterQ->Fill(nPulsesWithHigherCharge);
@@ -655,18 +674,36 @@ bool TFilterPassed(mcCascade* cascade, TVector3& matrixPosition, double& matrixT
 
 	for(int i = 0; i < cascade->nHits; i++)
 	{   
-		if(cascade->charge[cascade->chID[i]] > 0)
+		if(cascade->charge[cascade->chID[i]-1] > 0)
 		{
 			double distanceFromLEDmatrix = (matrixPosition - gOMpositions[cascade->chID[i]-1]).Mag();
 			// double scattering_correction = (gOMpositions[event->HitChannel(i)].Z() < matrixPosition.Z()) ? (gScatteringCorrection/15.0)*(matrixPosition.Z() - gOMpositions[event->HitChannel(i)].Z()) : 0;
 	        double expectedTime = matrixTime + distanceFromLEDmatrix*ReciprocalSpeedOfLightinWater;// + scattering_correction;
 
-	        h_timeRes->Fill(cascade->time[cascade->chID[i]] - expectedTime);
-	        if(cascade->time[cascade->chID[i]] >= expectedTime-gTCutTimeWindowNs && cascade->time[cascade->chID[i]] <= expectedTime + gTCutTimeWindowNs)
+	        h_timeRes->Fill(cascade->time[cascade->chID[i]-1] - expectedTime);
+	        if(cascade->time[cascade->chID[i]-1] >= expectedTime-gTCutTimeWindowNs && cascade->time[cascade->chID[i]-1] <= expectedTime + gTCutTimeWindowNs)
 	        {
 	        	// if (OMIDAlreadyInGPulses(event->GetImpulse(i)))
 	        		// continue;
-	        	g_pulses.push_back(PulsesVariables{cascade->chID[i]-1,cascade->time[cascade->chID[i]],cascade->charge[cascade->chID[i]],0,0});
+	        	g_pulses.push_back(PulsesVariables{cascade->chID[i]-1,cascade->time[cascade->chID[i]-1],cascade->charge[cascade->chID[i]-1],0,0});
+	        	nPulses++;
+	        }
+	    }
+	}
+	for(int i = 0; i < cascade->nNoiseHits; i++)
+	{   
+		if(cascade->noiseCharge[i] > 0)
+		{
+			double distanceFromLEDmatrix = (matrixPosition - gOMpositions[cascade->noiseChID[i]]).Mag();
+			// double scattering_correction = (gOMpositions[event->HitChannel(i)].Z() < matrixPosition.Z()) ? (gScatteringCorrection/15.0)*(matrixPosition.Z() - gOMpositions[event->HitChannel(i)].Z()) : 0;
+	        double expectedTime = matrixTime + distanceFromLEDmatrix*ReciprocalSpeedOfLightinWater;// + scattering_correction;
+
+	        h_timeRes->Fill(cascade->noiseTime[i] - expectedTime);
+	        if(cascade->noiseTime[i] >= expectedTime-gTCutTimeWindowNs && cascade->noiseTime[i] <= expectedTime + gTCutTimeWindowNs)
+	        {
+	        	// if (OMIDAlreadyInGPulses(event->GetImpulse(i)))
+	        		// continue;
+	        	g_pulses.push_back(PulsesVariables{cascade->noiseChID[i],cascade->noiseTime[i],cascade->noiseCharge[i],0,0});
 	        	nPulses++;
 	        }
 	    }
@@ -741,6 +778,7 @@ void EstimateInitialMatrixPositionMC(TVector3& position, double& matrixTime)//, 
 				double distance = TMath::Sqrt(TMath::Power(cascadeParameters[0]-gOMpositions[g_pulses[maxChargePulseID].OMID].X(),2)+TMath::Power(cascadeParameters[1]-gOMpositions[g_pulses[maxChargePulseID].OMID].Y(),2)+TMath::Power(cascadeParameters[2]-gOMpositions[g_pulses[maxChargePulseID].OMID].Z(),2));
 				cascadeParameters[3] = g_pulses[maxChargePulseID].time - distance*ReciprocalSpeedOfLightinWater;
 				chi2(nPar,gin,likelihoodValue,cascadeParameters,iflag);
+				// cout << likelihoodValue << " " << cascadeParameters[0] << " " << cascadeParameters[1] << " " << cascadeParameters[2] << endl;
 				if (likelihoodValue < lowestLog)
 				{
 					lowestLog = likelihoodValue;
@@ -846,7 +884,7 @@ int EventVisualization(BEvent* event, TVector3& position, double& matrixTime, in
 
 	int nOMsPerString = gNOMs/gNStrings;
 
-		for(int k = 0; k < event->NHits(); k++)
+	for(int k = 0; k < event->NHits(); k++)
 	{
 		nHitsPerString[event->GetImpulseChannelID(k)/36]++;
 	}
@@ -878,6 +916,99 @@ int EventVisualization(BEvent* event, TVector3& position, double& matrixTime, in
 		double distanceFromLEDmatrix = (position - gOMpositions[g_pulses[i].OMID]).Mag();
 		g_QvsL->SetPoint(i,distanceFromLEDmatrix,g_pulses[i].charge);
 	}
+
+	TCanvas *cEvent = new TCanvas(Form("cEvent_%d",eventID),Form("cEvent_%d",eventID),200,10,600,400);  
+	cEvent->Divide(3,3);
+	for (int i = 0; i < gNStrings; ++i)
+	{
+		cEvent->cd(i+1);
+		mg_hitsMatrix[i]->Add(g_hits[i],"P");
+		mg_hitsMatrix[i]->Add(g_ledMatrix[i],"P");
+		mg_hitsMatrix[i]->Add(g_lowerLimit[i],"L");
+		mg_hitsMatrix[i]->Add(g_upperLimit[i],"L");
+		mg_hitsMatrix[i]->Draw("AP");
+		// mg_hitsMatrix[i]->SetBit(kCanDelete);
+		g_hits[i]->SetMarkerStyle(20);
+		g_ledMatrix[i]->SetMarkerStyle(20);
+		g_ledMatrix[i]->SetMarkerColor(kRed);
+		g_lowerLimit[i]->SetLineColor(kGreen);
+		g_upperLimit[i]->SetLineColor(kGreen);
+	}
+	cEvent->cd(9);
+	g_QvsL->Draw("AP");
+	g_QvsL->SetTitle("Charge vs. Distance;Distance from cascade [m]; Charge [p.e.]");
+	cEvent->Write();
+
+	delete cEvent;
+	delete g_QvsL;
+	
+	for (int i = 0; i < gNStrings; ++i)
+	{
+		delete mg_hitsMatrix[i];
+	}
+	return 0;
+}
+
+int EventVisualization(mcCascade* cascade, TVector3& position, double& matrixTime, int eventID)
+{
+	int nHitsPerString[gNStrings]{0};
+	TGraph* g_hits[gNStrings];
+	TGraph* g_lowerLimit[gNStrings];
+	TGraph* g_upperLimit[gNStrings];
+	TMultiGraph* mg_hitsMatrix[gNStrings];
+	TGraph* g_ledMatrix[gNStrings];
+	TGraph* g_QvsL = new TGraph(g_pulses.size());
+	g_QvsL->SetMarkerStyle(20);
+
+	int nOMsPerString = gNOMs/gNStrings;
+
+	for (int k = 0; k < cascade->nHits; k++)
+	{
+		nHitsPerString[(cascade->chID[k]-1)/36]++;
+	}
+	for (int i = 0; i < cascade->nNoiseHits; ++i)
+	{
+		nHitsPerString[(cascade->noiseChID[i])/36]++;
+	}
+	for (int i = 0; i < gNStrings; ++i)
+	{
+		g_hits[i] = new TGraph(nHitsPerString[i]);
+		g_lowerLimit[i] = new TGraph(nOMsPerString);
+		g_upperLimit[i] = new TGraph(nOMsPerString);
+		mg_hitsMatrix[i] = new TMultiGraph(Form("mg_%d",i),Form("String_%d;Calibrated time [ns]; OM Z position [m]",i+1));
+		nHitsPerString[i] = 0;
+		g_ledMatrix[i] = new TGraph(1);
+		g_ledMatrix[i]->SetPoint(0,matrixTime,position.Z());
+	}
+	for(int k = 0; k < cascade->nHits; k++)
+	{
+		int stringID = (cascade->chID[k]-1)/36;
+		g_hits[stringID]->SetPoint(nHitsPerString[stringID],cascade->time[cascade->chID[k]-1],gOMpositions[cascade->chID[k]-1].Z());
+		nHitsPerString[stringID]++;
+	}
+	for(int k = 0; k < cascade->nNoiseHits; k++)
+	{
+		int stringID = (cascade->noiseChID[k])/36;
+		g_hits[stringID]->SetPoint(nHitsPerString[stringID],cascade->noiseTime[k],gOMpositions[cascade->noiseChID[k]].Z());
+		nHitsPerString[stringID]++;
+	}
+	for (int j = 0; j < gNOMs; ++j)
+	{
+		double distanceFromLEDmatrix = (position - gOMpositions[j]).Mag();
+	    double expectedTime = matrixTime + distanceFromLEDmatrix*ReciprocalSpeedOfLightinWater;
+		g_lowerLimit[j/nOMsPerString]->SetPoint(j%nOMsPerString,expectedTime-50,gOMpositions[j].Z());
+		g_upperLimit[j/nOMsPerString]->SetPoint(j%nOMsPerString,expectedTime+50,gOMpositions[j].Z());
+	}
+	for (int i = 0; i < g_pulses.size(); ++i)
+	{
+		double distanceFromLEDmatrix = (position - gOMpositions[g_pulses[i].OMID]).Mag();
+		g_QvsL->SetPoint(i,distanceFromLEDmatrix,g_pulses[i].charge);
+	}
+	// for (int i = 0; i < cascade->nNoiseHits; ++i)
+	// {
+	// 	double distanceFromLEDmatrix = (position - gOMpositions[cascade->noiseChID[i]]).Mag();
+	// 	g_QvsL->SetPoint(i,distanceFromLEDmatrix,cascade->charge[cascade->chID[i]]-1);
+	// }
 
 	TCanvas *cEvent = new TCanvas(Form("cEvent_%d",eventID),Form("cEvent_%d",eventID),200,10,600,400);  
 	cEvent->Divide(3,3);
@@ -972,6 +1103,77 @@ int ChargeVisualization(int eventID, double X, double Y, double Z, double energy
 	return 0;
 }
 
+int PrintCascadeJSON(int eventID, double X, double Y, double Z, double time, double theta, double phi)
+{
+	if (gMCMu || gMCNu || gMCCas)
+		return 1;
+
+	TString outputFileName;
+	if (App::Output == "")
+		outputFileName = BARS::Data::Directory(BARS::Data::JOINT, BARS::App::Season, BARS::App::Cluster, BARS::App::Run, gProductionID.c_str());
+	else
+		outputFileName = Form("%s/data/exp%d/cluster%d/%04d/",App::Output,BARS::App::Season,BARS::App::Cluster,BARS::App::Run);
+	char fname[100];
+	std::sprintf(fname,"cascade_season%d_cluster%d_run%d_evt%d.json",BARS::App::Season, BARS::App::Cluster, BARS::App::Run, eventID);
+	outputFileName += fname;
+	std::ofstream fOutputFile;
+	fOutputFile.open(outputFileName);
+	fOutputFile<<"{"<<std::endl;
+	fOutputFile<<"\t\"eventID\": "<<eventID<<","<<std::endl;
+	fOutputFile<<"\t\"season\": "<<BARS::App::Season<<","<<std::endl;
+	fOutputFile<<"\t\"cluster\": "<<BARS::App::Cluster<<","<<std::endl;
+	fOutputFile<<"\t\"run\": "<<BARS::App::Run<<","<<std::endl;
+	fOutputFile<<"\t\"pulses\": {"<<std::endl;
+
+	Int_t nImpulse = g_pulses.size();
+	for (int i = 0; i < nImpulse-1; i++)
+	{
+		fOutputFile<<"\t\t\"" << i << "\": \{ \"mask\": "<< 1 <<
+		  ", \"amplitude\": "<< g_pulses[i].charge <<
+		  ", \"charge\": "<< g_pulses[i].charge <<
+		  ", \"time\": "<< g_pulses[i].time <<
+		  ", \"channelID\": "<< g_pulses[i].OMID <<
+		  " },"<<std::endl;
+	}
+	fOutputFile<<"\t\t\"" << nImpulse-1 << "\": \{ \"mask\": "<< 1 <<
+	  ", \"amplitude\": "<< g_pulses[nImpulse-1].charge <<
+	  ", \"charge\": "<< g_pulses[nImpulse-1].charge <<
+	  ", \"time\": "<< g_pulses[nImpulse-1].time <<
+	  ", \"channelID\": "<< g_pulses[nImpulse-1].OMID <<
+	  " }"<<std::endl;
+	fOutputFile<<"\t},"<<std::endl;
+	fOutputFile<<"\t\"geometry\": ["<<std::endl;
+	for (int i=0; i<gNOMs-1; i++){
+	 fOutputFile<<"\t\t{\"channelID\": "<<i<<
+	            ", \"x\": "<<gOMpositions[i].X()<<
+	            ", \"y\": "<<gOMpositions[i].Y()<<
+	            ", \"z\": "<<gOMpositions[i].Z()<<"},"<<std::endl;
+	}
+	fOutputFile<<"\t\t{\"channelID\": "<<gNOMs-1<<
+	            ", \"x\": "<<gOMpositions[gNOMs-1].X()<<
+	            ", \"y\": "<<gOMpositions[gNOMs-1].Y()<<
+	            ", \"z\": "<<gOMpositions[gNOMs-1].Z()<<"}"<<std::endl;
+	fOutputFile<<"\t],"<<std::endl;
+	fOutputFile<<"\t\"origins\": {"<<std::endl;
+	fOutputFile<<"\t\t\"cascades\": [{"<<std::endl;
+	fOutputFile<<"\t\t\t\"mc\": false,"<<std::endl;
+	fOutputFile<<"\t\t\t\"title\": \"cascadeFit\","<<std::endl;
+	fOutputFile<<"\t\t\t\"direction\": {"<<std::endl;
+	fOutputFile<<"\t\t\t\t\"theta\": "<<std::right<<theta<<","<<std::endl;
+	fOutputFile<<"\t\t\t\t\"phi\": "<<std::right<<phi<<","<<std::endl;
+	fOutputFile<<"\t\t\t\t\"x\": "<<std::right<<X<<","<<std::endl;
+	fOutputFile<<"\t\t\t\t\"y\": "<<std::right<<Y<<","<<std::endl;
+	fOutputFile<<"\t\t\t\t\"z\": "<<std::right<<Z<<""<<std::endl;
+	// fOutputFile<<"\t\t\t\t\"time\": "<<std::right<<time<<std::endl;
+	fOutputFile<<"\t\t\t}"<<std::endl;
+	fOutputFile<<"\t\t}]"<<std::endl;
+	fOutputFile<<"\t}"<<std::endl;
+	fOutputFile<<"}"<<std::endl;
+	fOutputFile.close();
+
+	return 0;
+}
+
 bool ZFilterPassed(TVector3& position)
 {
 	if (position.Z() < gZCut)
@@ -1038,7 +1240,11 @@ bool QRatioFilterPassed(mcCascade* cascade, double &qRatio)
 	double allCharge = 0;
 	for (int i = 0; i < cascade->nHits; ++i)
 	{
-		allCharge += cascade->charge[cascade->chID[i]];
+		allCharge += cascade->charge[cascade->chID[i]-1];
+	}
+	for (int i = 0; i < cascade->nNoiseHits; ++i)
+	{
+		allCharge += cascade->noiseCharge[i];
 	}
 	double insideCharge = 0;
 	for (int i = 0; i < g_pulses.size(); ++i)
@@ -1251,7 +1457,7 @@ int DoTheMagic(TTree* tree, BExtractedImpulseTel* impulseTel)
 	// if --view (-w) switch is used, only specified eventID is visualized and program stops
 	if (gVisEventID != -1)
 	{
-		TString outputFileName = BARS::Data::Directory(BARS::App::Cluster, BARS::App::Season, BARS::App::Run, BARS::Data::JOINT, gProductionID.c_str());
+		TString outputFileName = BARS::Data::Directory(BARS::Data::JOINT, BARS::App::Season, BARS::App::Cluster, BARS::App::Run, gProductionID.c_str());
 		outputFileName += Form("recCasc_vis_%d.root",gVisEventID);
 		TFile* outputFile = new TFile(outputFileName,"RECREATE");
 		tree->GetEntry(gVisEventID);
@@ -1262,15 +1468,23 @@ int DoTheMagic(TTree* tree, BExtractedImpulseTel* impulseTel)
 		return 0;
 	}
 
-	TString outputFileName2 = BARS::Data::Directory(BARS::App::Cluster, BARS::App::Season, BARS::App::Run, BARS::Data::JOINT, gProductionID.c_str());
+	TString outputFileName2 = BARS::Data::Directory(BARS::Data::JOINT, BARS::App::Season, BARS::App::Cluster, BARS::App::Run, gProductionID.c_str());
 	outputFileName2 += "recCasc_nTuple.root";
-	TFile* outputFile2 = new TFile(outputFileName2,"RECREATE");
+	TFile* outputFile2;
+	if (App::Output == "")
+		outputFile2 = new TFile(outputFileName2,"RECREATE");
+	else
+		outputFile2 = new TFile(Form("%s/exp%d/cluster%d/%04d/recCasc_nTuple.root",App::Output,BARS::App::Season,BARS::App::Cluster,BARS::App::Run),"RECREATE");
 
-   	TNtuple* nt_cascades = new TNtuple("nt_cascades","NTuple of reconstructed cascades","runID:EventID:NPulses:NPulsesT:QRatio:CloseHits:Likelihood:X:Y:Z:Time:Energy:Theta:Phi");
+   	TNtuple* nt_cascades = new TNtuple("nt_cascades","NTuple of reconstructed cascades","runID:EventID:NPulses:NPulsesT:QTotal:QRatio:CloseHits:Likelihood:X:Y:Z:Time:Energy:Theta:Phi");
 
-	TString outputFileName = BARS::Data::Directory(BARS::App::Cluster, BARS::App::Season, BARS::App::Run, BARS::Data::JOINT, gProductionID.c_str());
+	TString outputFileName = BARS::Data::Directory(BARS::Data::JOINT, BARS::App::Season, BARS::App::Cluster, BARS::App::Run, gProductionID.c_str());
 	outputFileName += "recCasc_vis.root";
-	TFile* outputFile = new TFile(outputFileName,"RECREATE");
+	TFile* outputFile;
+	if (App::Output == "")
+		outputFile = new TFile(outputFileName,"RECREATE");
+	else
+		outputFile = new TFile(Form("%s/exp%d/cluster%d/%04d/recCasc_vis.root",App::Output,BARS::App::Season,BARS::App::Cluster,BARS::App::Run),"RECREATE");
 
 	int nEntries = (gNEventsProcessed == -1)?tree->GetEntries():gNEventsProcessed;
 	int nNFilter = 0;
@@ -1289,6 +1503,7 @@ int DoTheMagic(TTree* tree, BExtractedImpulseTel* impulseTel)
 	int nPulsesT = 0;
 	double qRatio = 0;
 	int closeHits = 0;
+	double overallCharge = 0;
 
 	// Loop through all the events
 	for (int i = 0; i < nEntries; ++i)
@@ -1302,7 +1517,7 @@ int DoTheMagic(TTree* tree, BExtractedImpulseTel* impulseTel)
 		if (!NFilterPassed(impulseTel,nPulses))
 			continue;
 		nNFilter++;
-		if (!QFilterPassed(impulseTel))
+		if (!QFilterPassed(impulseTel,overallCharge))
 			continue;
 		nQFilter++;
 
@@ -1310,7 +1525,7 @@ int DoTheMagic(TTree* tree, BExtractedImpulseTel* impulseTel)
 		//initialization of R and T for LED matrix
 		TVector3 matrixPosition(0,0,0); 
 		double matrixTime = 0;
-		EstimateInitialMatrixPosition(matrixPosition,matrixTime);
+		EstimateInitialMatrixPositionMC(matrixPosition,matrixTime);
 		// matrixPosition.Print();
 		// fMinuit->SetFCN(chi2);
 		fMinuit->SetFCN(MEstimator);
@@ -1360,12 +1575,13 @@ int DoTheMagic(TTree* tree, BExtractedImpulseTel* impulseTel)
 		cout << i << endl;
 		if (!LikelihoodFilterPassed(matrixPosition,matrixTime,cascadeEnergy,cascadeTheta,cascadePhi,likelihood))
 		{
-			nt_cascades->Fill((double)BARS::App::Run,(double)i,(double)nPulses,(double)nPulsesT,qRatio,(double)closeHits,-1,matrixPosition.X(),matrixPosition.Y(),matrixPosition.Z(),matrixTime,0,0,0);
+			nt_cascades->Fill((double)BARS::App::Run,(double)i,(double)nPulses,(double)nPulsesT,overallCharge,qRatio,(double)closeHits,-1,matrixPosition.X(),matrixPosition.Y(),matrixPosition.Z(),matrixTime,0,0,0);
 			continue;
 		}
 		nLikelihoodFilter++;
-		nt_cascades->Fill((double)BARS::App::Run,(double)i,(double)nPulses,(double)nPulsesT,qRatio,(double)closeHits,likelihood,matrixPosition.X(),matrixPosition.Y(),matrixPosition.Z(),matrixTime,cascadeEnergy,cascadeTheta,cascadePhi);
+		nt_cascades->Fill((double)BARS::App::Run,(double)i,(double)nPulses,(double)nPulsesT,overallCharge,qRatio,(double)closeHits,likelihood,matrixPosition.X(),matrixPosition.Y(),matrixPosition.Z(),matrixTime,cascadeEnergy,cascadeTheta,cascadePhi);
 		ChargeVisualization(i,matrixPosition.X(),matrixPosition.Y(),matrixPosition.Z(),cascadeEnergy,cascadeTheta,cascadePhi);
+		PrintCascadeJSON(i,matrixPosition.X(),matrixPosition.Y(),matrixPosition.Z(),matrixTime,cascadeTheta,cascadePhi);
 	}
 
 	cout << "\nNentries: \t" << nEntries << endl;
@@ -1531,7 +1747,7 @@ int ReadTimeCal(void)
 // It also let us know about operating OMs. If there is -1 in the qcalib for OM we assume it is dead.
 int ReadQCal(void)
 {
-	const char* filePath = BARS::Data::File(BARS::App::Cluster, BARS::App::Season, BARS::App::Run, BARS::Data::JOINT,gProductionID.c_str());
+	const char* filePath = BARS::Data::File(BARS::Data::JOINT, BARS::App::Season, BARS::App::Cluster, BARS::App::Run, gProductionID.c_str());
 	TString jointFileName(filePath);
 	TString chargeFileName(jointFileName(0,jointFileName.Length()-17));
 	chargeFileName += "qcalib";
@@ -1566,7 +1782,7 @@ void SaveHistograms()
 	TString outputFileName = "";
 
 	if (!gMCMu && !gMCNu && !gMCCas)
-		outputFileName = BARS::Data::Directory(BARS::App::Cluster, BARS::App::Season, BARS::App::Run, BARS::Data::JOINT, gProductionID.c_str());
+		outputFileName = BARS::Data::Directory(BARS::Data::JOINT, BARS::App::Season, BARS::App::Cluster, BARS::App::Run, gProductionID.c_str());
 
 	if (gMCMu)
 		outputFileName = "/Data/BaikalData/mc/2018may/";
@@ -1579,10 +1795,15 @@ void SaveHistograms()
 
 
 	outputFileName += "recCasc_hist.root";
-	TFile* outputFile = new TFile(outputFileName,"RECREATE");
+	TFile* outputFile;
+	if (App::Output == "")
+		outputFile = new TFile(outputFileName,"RECREATE");
+	else
+		outputFile = new TFile(Form("%s/data/exp%d/cluster%d/%04d/recCasc_hist.root",App::Output,BARS::App::Season,BARS::App::Cluster,BARS::App::Run),"RECREATE");
 
 	h_nHits->Write();
 	h_chargePerHit->Write();
+	h_chargePerEvent->Write();
 	h_nHitsAfterQ->Write();
 	h_chi2AfterQ->Write();
 	h_nHitsAfterT->Write();
@@ -1597,7 +1818,11 @@ void SaveHistograms()
 int ReadLogTable()
 {
 	cout << "4D LogTable reading starts" << endl;
-	ifstream fTab ("/Data/BaikalData/showerTable/hq001200_double.dqho2011", ios::in|ios::binary|ios::ate);
+	ifstream fTab;
+	if (App::Output == "")
+		fTab.open("/Data/BaikalData/showerTable/hq001200_double.dqho2011", ios::in|ios::binary|ios::ate);
+	else
+		fTab.open("./hq001200_double.dqho2011", ios::in|ios::binary|ios::ate);
 
 	if (!fTab.is_open())
 		return -1;
@@ -1648,7 +1873,7 @@ int processExperimentalData()
     	gProductionID = "barsv051";
 
     // const char* filePath = BARS::Data::File(BARS::App::Cluster, BARS::App::Season, BARS::App::Run, BARS::Data::JOINT,"r01_i01_j01_t01");
-    const char* filePath = BARS::Data::File(BARS::App::Cluster, BARS::App::Season, BARS::App::Run, BARS::Data::JOINT,gProductionID.c_str());
+    const char* filePath = BARS::Data::File(BARS::Data::JOINT, BARS::App::Season, BARS::App::Cluster, BARS::App::Run, gProductionID.c_str());
 
     if (ReadLogTable() == -1)
     {
@@ -2055,6 +2280,59 @@ int processMCData()
     return 0;
 }
 
+int GenerateNoise(mcCascade* cascade)
+{
+	ifstream inputFile("/Data/BaikalData/showerTable/mc-noise-charge-2016.dat", ios::in);
+
+   	if (!inputFile)
+    {
+    	cerr << "Calibration file: " << "/Data/BaikalData/showerTable/mc-noise-charge-2016.dat" << " was NOT found. Program termination!" << endl;
+    	return -1;
+  	}
+
+    string dummyLine;
+    double readValue = 0;
+
+    getline(inputFile,dummyLine);
+    vector<double> noiseTable;
+
+    for (int i = 0; i < 500; ++i)
+    {
+		inputFile >> readValue;
+		noiseTable.push_back(readValue);
+		// cout << readValue << endl;
+    }
+    inputFile.close();
+
+	TRandom2 ranGen;
+	cascade->nNoiseHits = 0;
+	for (int i = 0; i < gNOMs; ++i)
+	{
+		int noisePulses = ranGen.Poisson(0.25);
+		// cout << "OMID: " << i << " nNoisePulses: " << noisePulses << endl;
+		for (int j = 0; j < noisePulses; ++j)
+		{
+			double noiseCharge = 0;//ranGen.Landau(1,2);
+			double ranNumber = ranGen.Uniform(1);
+			for (int j = 0; j < noiseTable.size(); ++j)
+			{
+				if (noiseTable[j] > ranNumber)
+				{
+					noiseCharge = j*0.05;
+					break;
+				}
+			}
+			double noiseTime = ranGen.Uniform(5120)-2560;
+			cascade->noiseCharge[cascade->nNoiseHits] = noiseCharge;
+			cascade->noiseTime[cascade->nNoiseHits] = noiseTime;
+			cascade->noiseChID[cascade->nNoiseHits] = i;
+			cascade->nNoiseHits++;
+			// cout << "\t" << j << " " << noiseTime << " " << noiseCharge << endl; 
+		}
+	}
+	return 0;
+}
+
 int DoTheMagicMCCascades(TChain* tree, mcCascade* cascade)
 {
 	TString outputFileName2 = "/Data/BaikalData/mc/DZH_cascades/";
@@ -2099,6 +2377,8 @@ int DoTheMagicMCCascades(TChain* tree, mcCascade* cascade)
 		if (cascade->showerEnergy > 1000 || i%100 != 0)
 			continue;
 		nEvents++;
+		cascade->nNoiseHits = 0;
+		GenerateNoise(cascade);
 		// cout << i << endl;
 		if (!NFilterPassed(cascade,nPulses))
 			continue;
@@ -2112,6 +2392,7 @@ int DoTheMagicMCCascades(TChain* tree, mcCascade* cascade)
 		double matrixTime = 0;
 		// EstimateInitialMatrixPositionMC(matrixPosition,matrixTime,cascade);
 		EstimateInitialMatrixPositionMC(matrixPosition,matrixTime);
+		// cout << "TruePosition: " << cascade->position[0] << " " << cascade->position[1] << " " << cascade->position[2] << endl;
 		initialPosEstim = matrixPosition;
 		// matrixPosition.Print();
 		// cout << matrixTime << endl;
@@ -2126,6 +2407,7 @@ int DoTheMagicMCCascades(TChain* tree, mcCascade* cascade)
 		nQFilterChi2++;
 		if (!TFilterPassed(cascade,matrixPosition,matrixTime,nPulsesT))
 			continue;
+		// PrintGPulses();
 		nTFilter++;
 		fMinuit->SetFCN(chi2);
 		double chi2TResult = FitMatrixPosition(matrixPosition,matrixTime);
@@ -2151,6 +2433,7 @@ int DoTheMagicMCCascades(TChain* tree, mcCascade* cascade)
 		if (!CloseHitsFilterPassed(matrixPosition,closeHits))
 			continue;
 		nCloseHitsFilter++;
+		EventVisualization(cascade,matrixPosition,matrixTime,i);
 
 		double cascadeEnergyTrue = cascade->showerEnergy;
 		double cascadeThetaTrue = TMath::Pi()-TMath::ACos(cascade->cosTheta);
@@ -2228,7 +2511,7 @@ int ReadGeometryMCCascades()
     for (int i = 0; i < gNOMs; ++i)
     {
 		inputFile >> OMID >> x >> y >> z >> dummyD >> dummyI;
-		gOMpositions[i] = TVector3(x,y,z+15);
+		gOMpositions[i] = TVector3(x,y,z);
     }
     inputFile.close();	
 

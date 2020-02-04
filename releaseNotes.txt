@@ -1,4 +1,17 @@
-28.01.2020 - git commit ---
+04.02.2020 - git commit ---
+	* minor changes to studyReconstructed(MC)Cascades.C
+	* config.rc: number of hits increased from 60 -> 80 + TDelayCut 400 -> 600
+	* IMPORTANT: MCCascades and all corresponding filters extended for MC noise
+	* h_chargePerEvent histogram added and this property is also used to filter events (overallEventCharge [p.e] > 250)
+	* error in the MCCascade reconstruction corrected
+	* event visualization for MCCascade added
+	* PrintCascadeJSON() added to save jsons that can be visualized by the event viewer
+	* structure of the BARS::DATA::Direcotry and FileName has changed
+	* the "o" switch now can be used to save results to other folder (useful for VM processing)
+	* Estimate initial position again based on the grid approach
+	
+
+28.01.2020 - git commit 13123210d57a882fac10f7d1bbaa1a935139ba62
 	* The nonHit term added to the logLikelihood fitting
 	* the initial position and time estimation again based on the highest Q OM
 	* charge visualization extended to show expected charge on all OMs

@@ -32,6 +32,9 @@ int studyReconstructedMCCascades(int year = 2016, int cluster = 0)
 
 	// TString filesDir = "/Data/BaikalData/mc/2018may/recCasc_nTuple.root";
 	TString filesDir = "/Data/BaikalData/mc/DZH_cascades/recCasc_nTuple.root";
+	// TString filesDir = "/Data/BaikalData/mc/DZH_cascades/withNonHit/recCasc_nTuple.root";
+	// TString filesDir = "/Data/BaikalData/mc/DZH_cascades/withoutNonHit/recCasc_nTuple.root";
+	// TString filesDir = "/Data/BaikalData/mc/DZH_cascades/withoutNonHit_HQ/recCasc_nTuple.root";
 	// TString filesDir = "/Data/BaikalData/mc/nuatm_feb19/recCasc_nTuple.root";
 
 
@@ -100,7 +103,9 @@ int studyReconstructedMCCascades(int year = 2016, int cluster = 0)
 	{
 		reconstructedCascades.GetEntry(i);
 		double mismatchPosition = TMath::Sqrt(TMath::Power(trueX-X,2)+TMath::Power(trueY-Y,2)+TMath::Power(trueZ-Z,2));
-		if (likelihood != -1 && trueEnergy < 2000)
+		double distance = TMath::Sqrt(TMath::Power(trueX,2)+TMath::Power(trueY,2));
+		// if (likelihood != -1 && trueEnergy < 2000 && distance < 40 && trueZ < 250 && trueZ > -250 && trueEnergy > 200)
+		if (likelihood != -1 && trueEnergy < 2000 )
 		{
 			h_mismatchPosition->Fill(mismatchPosition);			
 			TVector3 posTrue(trueX,trueY,trueZ);

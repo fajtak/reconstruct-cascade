@@ -48,7 +48,7 @@ int studyReconstructedCascades(int year, int cluster)
 	if(const char* env_p = std::getenv("CEPH_MNT"))
 	{
     	// filesDir = Form("%s/exp%d_barsv051/cluster%d/",env_p,year,cluster);
-    	filesDir = Form("/Data/BaikalData/dataLog/exp20%d/cluster%d/",year,cluster);
+    	filesDir = Form("/Data/BaikalData/dataLog_HQ/exp20%d/cluster%d/",year,cluster);
 		cout << env_p << endl;
 	}else{	
 		cout << "SET ENVIROMENT VARIABLE CEPH_MNT" << endl;
@@ -100,11 +100,15 @@ int studyReconstructedCascades(int year, int cluster)
 	for (int i = 0; i < reconstructedCascades.GetEntries(); ++i)
 	{
 		reconstructedCascades.GetEntry(i);
-		if (energy < 100 || nPulsesT < 20)
+		if (energy < 100 || nPulsesT < 25)
 			continue;
-		std::cout << i << "\t" << runID << "\t" << eventID << "\t\t" << nPulsesT << "\t" << qRatio << "\t" << closeHits << "\t" << X << "\t" << Y << "\t" << Z << std::endl;
+		// if (TMath::Abs(X-stringXPositions[7]) > 60 || TMath::Abs(Y-stringYPositions[7]) > 60)
+			// continue; 
+		if (likelihood > 2)
+			continue;
+		std::cout << i << "\t" << runID << "\t" << eventID << "\t" << nPulsesT << "\\" << nPulses << "\t" << qRatio << "\t" << closeHits << "\t" << X-stringXPositions[7] << "\t" << Y-stringYPositions[7] << "\t" << Z << std::endl;
 		std::cout << i << "\t" << likelihood << "\t" << energy << "\t\t" << theta << "\t" << phi << std::endl;
-		if (Z < 560)
+		if (Z < 600)
 		{
 			cascadePositions->SetPoint(i,X,Y);
 			zRhoPositions->SetPoint(i,TMath::Sqrt(TMath::Power(X-stringXPositions[7],2)+TMath::Power(Y-stringYPositions[7],2)),Z);
