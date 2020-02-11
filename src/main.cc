@@ -428,8 +428,8 @@ double FitMatrixDirection(TVector3 &R2, double &T2, double &energy, double &thet
 	theta = fMinuit->GetParameter(5);
 	phi = fMinuit->GetParameter(6);
 
-	// return chi2/(g_pulses.size()-4);  
-	return chi2/gNOMs;  
+	return chi2/(g_pulses.size()-4);  
+	// return chi2/gNOMs;  
 }
 
 void PrintConfig(void)
@@ -530,6 +530,8 @@ bool QFilterPassed(BExtractedImpulseTel* impulseTel, double &overallCharge)
 	overallCharge = 0;
 	for (int i = 0; i < impulseTel->GetNimpulse(); ++i)
 	{
+		if (gOMQCal[impulseTel->GetNch(i)] < 0)
+			cout << "ERROR" << endl;
 		h_chargePerHit->Fill(impulseTel->GetQ(i)/gOMQCal[impulseTel->GetNch(i)]);
 		overallCharge += impulseTel->GetQ(i)/gOMQCal[impulseTel->GetNch(i)];
 		// cout << i << " " << impulseTel->GetNch(i) << " " << impulseTel->GetQ(i) << " " << impulseTel->GetT(i) << endl;
@@ -543,7 +545,7 @@ bool QFilterPassed(BExtractedImpulseTel* impulseTel, double &overallCharge)
 	}
 	h_nHitsAfterQ->Fill(nPulsesWithHigherCharge);
 	h_chargePerEvent->Fill(overallCharge);
-	if (nPulsesWithHigherCharge >= gQCutHits && overallCharge > 250)
+	if (nPulsesWithHigherCharge >= gQCutHits && overallCharge > gQCutOverall)
 		return true;
 	else
 		return false;
@@ -1627,7 +1629,7 @@ int SetOMsDynamic(BGeomTel* bgeom) //dynamic posiions
 	return nOKOMs;
 }
 
-int ReadGeometry(BExtractedHeader* header) // read dynamic geometry
+int ReadGeometry(TTree* tree, BExtractedHeader* header) // read dynamic geometry
 {
 	const char* geometryFileName = BARS::Geom::File(BARS::App::Cluster, BARS::App::Season, BARS::Geom::OM_EXPORT_LINEAR);
 
@@ -1642,7 +1644,15 @@ int ReadGeometry(BExtractedHeader* header) // read dynamic geometry
 		return 99;
 	}
 
-	long double startTime = header->GetTime().GetSec();
+	int entryID = 0;
+	long double startTime = 0;
+
+	do
+	{
+		tree->GetEntry(entryID);
+		startTime = header->GetTime().GetSec();
+		entryID++;
+	}while (startTime == 0);
 
 	BDynamicGeometry* telGeometry = NULL;
 	geometryTree->SetBranchAddress("BGeomTel.", &telGeometry);
@@ -1899,8 +1909,7 @@ int processExperimentalData()
 	PrintConfig();
 	PrintRunInfo(tree,header);
 	cout << "Season: " << BARS::App::Season << " Cluster: " << BARS::App::Cluster << " Run: " <<  BARS::App::Run << endl;
-	tree->GetEntry(5);
-	if (ReadGeometry(header) == -1)
+	if (ReadGeometry(tree,header) == -1)
 	{
 		std::cout << "Problem with geometry file!" << std::endl;
 		return -1;
@@ -2374,7 +2383,7 @@ int DoTheMagicMCCascades(TChain* tree, mcCascade* cascade)
 			cout << std::flush;
 		}
 		tree->GetEntry(i);
-		if (cascade->showerEnergy > 1000 || i%100 != 0)
+		if (cascade->showerEnergy > 1000 || TMath::Sqrt(TMath::Power(cascade->position[0],2)+TMath::Power(cascade->position[1],2)) > 60 || i % 1000 != 0)
 			continue;
 		nEvents++;
 		cascade->nNoiseHits = 0;
@@ -2396,7 +2405,8 @@ int DoTheMagicMCCascades(TChain* tree, mcCascade* cascade)
 		initialPosEstim = matrixPosition;
 		// matrixPosition.Print();
 		// cout << matrixTime << endl;
-		fMinuit->SetFCN(chi2);
+		// fMinuit->SetFCN(chi2);
+		fMinuit->SetFCN(MEstimator);
 		double chi2QResult = FitMatrixPosition(matrixPosition,matrixTime);
 		h_chi2AfterQ->Fill(chi2QResult);
 		// matrixPosition.Print();
@@ -2521,7 +2531,7 @@ int ReadGeometryMCCascades()
 int processMCCascades()
 {
 	TChain* mcFiles = new TChain("h11");
-	mcFiles->Add("/Data/BaikalData/mc/DZH_cascades/ne16_tin_c1_001.root");
+	mcFiles->Add("/Data/BaikalData/mc/DZH_cascades/ne16_tin_c*_00*.root");
 
 	mcCascade* cascade = new mcCascade;
     

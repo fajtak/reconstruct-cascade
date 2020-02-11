@@ -1,7 +1,7 @@
 NCut 10
 QCut 3.5
 QCutHits 6
-QCutChi2 2000
+QCutChi2 5
 TCutTimeWindowNs 50
 TCutHits 10
 TCutChi2 5

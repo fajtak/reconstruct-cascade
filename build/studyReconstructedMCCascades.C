@@ -105,7 +105,7 @@ int studyReconstructedMCCascades(int year = 2016, int cluster = 0)
 		double mismatchPosition = TMath::Sqrt(TMath::Power(trueX-X,2)+TMath::Power(trueY-Y,2)+TMath::Power(trueZ-Z,2));
 		double distance = TMath::Sqrt(TMath::Power(trueX,2)+TMath::Power(trueY,2));
 		// if (likelihood != -1 && trueEnergy < 2000 && distance < 40 && trueZ < 250 && trueZ > -250 && trueEnergy > 200)
-		if (likelihood != -1 && trueEnergy < 2000 )
+		if (likelihood != -1 && trueEnergy < 2000 && trueEnergy > 100)
 		{
 			h_mismatchPosition->Fill(mismatchPosition);			
 			TVector3 posTrue(trueX,trueY,trueZ);

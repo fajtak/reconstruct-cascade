@@ -11,6 +11,7 @@
 
 int gNEventsProcessed = -1; 
 int gNCut = -1;
+double gQCutOverall = -1;
 double gQCut = -1;
 int gQCutHits = -1;
 double gQCutChi2 = -1;
@@ -114,6 +115,7 @@ void readRC(const char* rcpath)
 		exit(1);
 	}
 	gNCut = env.GetValue("NCut", 70);
+	gQCutOverall = env.GetValue("QCutOverall", 400.0);
 	gQCut = env.GetValue("QCut", 15.0);
 	gQCutHits = env.GetValue("QCutHits", 6);
 	gQCutChi2 = env.GetValue("QCutChi2", 50);

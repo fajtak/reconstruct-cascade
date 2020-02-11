@@ -7,6 +7,7 @@
 extern int gNEventsProcessed;
 extern int gVisEventID;
 extern int gNCut;
+extern double gQCutOverall;
 extern double gQCut;
 extern int gQCutHits;
 extern double gQCutChi2;

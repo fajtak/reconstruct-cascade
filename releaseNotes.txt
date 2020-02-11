@@ -1,4 +1,11 @@
-04.02.2020 - git commit ---
+11.02.2020 - git commit ---
+	* QCutOverall added with default value 500
+	* QCutHits increased to 10
+	* NCut decreased to 70
+	* logLikelihood return value divided by g_pulses size not 288
+	* Now the first non zero time of the run is found
+
+04.02.2020 - git commit 0414a2e6ba3d8b026c26beb7928e85ab014656d8
 	* minor changes to studyReconstructed(MC)Cascades.C
 	* config.rc: number of hits increased from 60 -> 80 + TDelayCut 400 -> 600
 	* IMPORTANT: MCCascades and all corresponding filters extended for MC noise
@@ -9,7 +16,6 @@
 	* structure of the BARS::DATA::Direcotry and FileName has changed
 	* the "o" switch now can be used to save results to other folder (useful for VM processing)
 	* Estimate initial position again based on the grid approach
-	
 
 28.01.2020 - git commit 13123210d57a882fac10f7d1bbaa1a935139ba62
 	* The nonHit term added to the logLikelihood fitting
