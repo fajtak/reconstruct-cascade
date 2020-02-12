@@ -1,4 +1,14 @@
-11.02.2020 - git commit ---
+12.02.2019 - git commit ---
+	* Huge change!!! All inputs (data, MC, MCcascades) are now processed in the same way
+	* standardized UniformEvent was implemented and all different inputs are transformed to this format
+	* DoTheMagicUnified()
+	* EstimatePosition based on the Matrix approach from ANTARES
+	* Caussality filter
+	* In the next commit all functions for individual inputs are going to be removed
+	* QMEstimatoCut decreased from 2000 to 600
+
+
+11.02.2020 - git commit 108c4fbb0d926d85774b8827724a57e1d2fc2842
 	* QCutOverall added with default value 500
 	* QCutHits increased to 10
 	* NCut decreased to 70

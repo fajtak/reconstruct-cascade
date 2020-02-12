@@ -18,6 +18,8 @@
 #include "TNtuple.h"
 #include "TChain.h"
 #include "TRandom2.h"
+#include "TMatrixD.h"
+#include "TVectorD.h"
 
 //BARS dependencies
 #include "BARS.h"
@@ -51,6 +53,7 @@ struct PulsesVariables
   double time;
   double charge;
   double expectedCharge;
+  bool noise;
   int MCflag;
 };
 
@@ -59,6 +62,18 @@ struct mcCascade
 	int eventID, nHits, nNoiseHits;
 	float showerEnergy, cosTheta, phi, position[3], charge[288], time[288], noiseCharge[1000], noiseTime[1000];
 	unsigned short chID[288], noiseChID[1000];
+};
+
+struct UnifiedEvent
+{
+	vector<PulsesVariables> hits;
+	double mcEnergy = -1;
+	double mcTheta = -1;
+	double mcPhi = -1;
+	TVector3 mcPosition;
+	int nHits = -1;
+	int nSignalHits = -1;
+	int nNoiseHits = -1;
 };
 
 vector<PulsesVariables> g_pulses; //global vector of PulsesVariables
@@ -438,6 +453,7 @@ void PrintConfig(void)
 	std::cout << "Reconstruction configuration: " << std::endl;
 	std::cout << std::string(80,'*') << std::endl;
 	std::cout << "NFilter: " << gNCut << endl;
+	std::cout << "QOverallFilter: " << gQCutOverall << endl;
 	std::cout << "QFilter: " << gQCut << endl;
 	std::cout << "QFilterHits: " << gQCutHits << endl;
 	std::cout << "QFilterChi2: " << gQCutChi2 << endl;
@@ -450,6 +466,17 @@ void PrintConfig(void)
 	std::cout << "BranchFilter: " << gBranchCut << endl;
 	std::cout << "LikelihoodFilter: " << gLikelihoodCut << endl;
 	std::cout << std::string(80,'*') << std::endl;
+}
+
+bool NFilterPassed(UnifiedEvent &event, int &nPulses)
+{
+	nPulses = event.nHits;
+	h_nHits->Fill(nPulses);
+	if (nPulses >= gNCut)
+	{
+		return true;
+	}
+	return false;
 }
 
 bool NFilterPassed(BExtractedImpulseTel* impulseTel, int &nPulses)
@@ -483,6 +510,28 @@ bool NFilterPassed(mcCascade* cascade, int &nPulses)
 		return true;
 	}
 	return false;
+}
+
+bool OMIDAlreadyInGPulses(PulsesVariables &pulse)
+{
+	bool OMIDAlreadyIn = false;
+	for (int k = 0; k < g_pulses.size(); ++k)
+	{
+		if (g_pulses[k].OMID == pulse.OMID)
+		{
+			if (g_pulses[k].charge < pulse.charge)
+			{
+				g_pulses[k].charge = pulse.charge;
+				g_pulses[k].time = pulse.time;
+				g_pulses[k].expectedCharge = pulse.expectedCharge;
+				g_pulses[k].noise = pulse.noise;
+				g_pulses[k].MCflag = pulse.MCflag;
+			}
+			OMIDAlreadyIn = true;
+			break;
+		}
+	}
+	return OMIDAlreadyIn;
 }
 
 bool OMIDAlreadyInGPulses(BExtractedImpulse* impulse)
@@ -521,6 +570,32 @@ bool OMIDAlreadyInGPulses(BImpulse* impulse)
 		}
 	}
 	return OMIDAlreadyIn;
+}
+
+bool QFilterPassed(UnifiedEvent &event, double &overallCharge)
+{
+	g_pulses.clear();
+	int nPulsesWithHigherCharge = 0;
+	overallCharge = 0;
+	for (int i = 0; i < event.nHits; ++i)
+	{
+		h_chargePerHit->Fill(event.hits[i].charge);
+		overallCharge += event.hits[i].charge;
+		if (event.hits[i].charge > gQCut && gOMtimeCal[event.hits[i].OMID] != 0)
+		{
+			// SOLVE THIS !!!
+			if (OMIDAlreadyInGPulses(event.hits[i]))
+				continue;
+			nPulsesWithHigherCharge++;
+			// g_pulses.push_back(PulsesVariables{event.hits[i].OMID,event.hits[i].time,event.hits[i].charge});
+		}
+	}
+	h_nHitsAfterQ->Fill(nPulsesWithHigherCharge);
+	h_chargePerEvent->Fill(overallCharge);
+	if (nPulsesWithHigherCharge >= gQCutHits && overallCharge > gQCutOverall)
+		return true;
+	else
+		return false;
 }
 
 bool QFilterPassed(BExtractedImpulseTel* impulseTel, double &overallCharge)
@@ -604,6 +679,32 @@ bool QFilterPassed(mcCascade* cascade)
 	}
 	h_nHitsAfterQ->Fill(nPulsesWithHigherCharge);
 	if (nPulsesWithHigherCharge >= gQCutHits)
+		return true;
+	else
+		return false;
+}
+
+bool TFilterPassed(UnifiedEvent &event, TVector3& matrixPosition, double& matrixTime, int &nPulses)
+{
+	nPulses = 0;
+	g_pulses.clear();
+
+	for(int i = 0; i < event.nHits; i++)
+	{   
+		double distanceFromLEDmatrix = (matrixPosition - gOMpositions[event.hits[i].OMID]).Mag();
+        double expectedTime = matrixTime + distanceFromLEDmatrix*ReciprocalSpeedOfLightinWater;
+
+        h_timeRes->Fill(event.hits[i].time - expectedTime);
+        if(event.hits[i].time >= expectedTime-gTCutTimeWindowNs && event.hits[i].time <= expectedTime + gTCutTimeWindowNs)
+        {
+        	if (OMIDAlreadyInGPulses(event.hits[i]))
+        		continue;
+        	g_pulses.push_back(PulsesVariables{event.hits[i].OMID,event.hits[i].time,event.hits[i].charge});
+        	nPulses++;
+        }
+	}
+	h_nHitsAfterT->Fill(nPulses);
+	if (nPulses >= gTCutHits)
 		return true;
 	else
 		return false;
@@ -745,7 +846,7 @@ void EstimateInitialMatrixPositionMC(TVector3& position, double& matrixTime, mcC
 }
 
 
-void EstimateInitialMatrixPositionMC(TVector3& position, double& matrixTime)//, mcCascade* cascade)
+void EstimateInitialMatrixPositionGrid(TVector3& position, double& matrixTime)//, mcCascade* cascade)
 {
 	// cout << "Grid based initial estimation" << endl;
 	int nPar = 0;
@@ -793,6 +894,116 @@ void EstimateInitialMatrixPositionMC(TVector3& position, double& matrixTime)//, 
 		}
 	}
 	// cout << lowestLog << " " << position[0] << " " << position[1] << " " << position[2] << " " << matrixTime << endl;
+}
+
+void EstimateInitialMatrixPositionMatrix(TVector3& position, double& matrixTime)
+{
+	TMatrixD A(g_pulses.size()-1,4);
+	TVectorD b(g_pulses.size()-1);
+
+	for (int i = 0; i < g_pulses.size()-1; ++i)
+	{
+		double temp = TMath::Power(gOMpositions[g_pulses[i+1].OMID].X(),2) - TMath::Power(gOMpositions[g_pulses[i].OMID].X(),2);
+		temp += TMath::Power(gOMpositions[g_pulses[i+1].OMID].Y(),2) - TMath::Power(gOMpositions[g_pulses[i].OMID].Y(),2);
+		temp += TMath::Power(gOMpositions[g_pulses[i+1].OMID].Z(),2) - TMath::Power(gOMpositions[g_pulses[i].OMID].Z(),2);
+		temp -= (TMath::Power(g_pulses[i+1].time,2) - TMath::Power(g_pulses[i].time,2))/TMath::Power(ReciprocalSpeedOfLightinWater,2);
+		b[i] = temp;
+
+		A[i][0] = 2*(gOMpositions[g_pulses[i+1].OMID].X() - gOMpositions[g_pulses[i].OMID].X());
+		A[i][1] = 2*(gOMpositions[g_pulses[i+1].OMID].Y() - gOMpositions[g_pulses[i].OMID].Y());
+		A[i][2] = 2*(gOMpositions[g_pulses[i+1].OMID].Z() - gOMpositions[g_pulses[i].OMID].Z());
+		A[i][3] = -2*(g_pulses[i+1].time - g_pulses[i].time)/TMath::Power(ReciprocalSpeedOfLightinWater,2);
+	}
+
+	TMatrixD B(4,g_pulses.size()-1);
+	B.Transpose(A); 
+	TMatrixD C = (B*A).Invert();
+	TVectorD D = A.T()*b;
+	TVectorD X = C*D;
+
+	// cout << X[0] << " " << X[1] << " " << X[2] << " " << X[3] << endl;
+	position[0] = X[0];
+	position[1] = X[2];
+	position[2] = X[2];
+	matrixTime = X[3];
+}
+
+int EventVisualization(int eventID, UnifiedEvent &event, TVector3& position, double& matrixTime)
+{
+	int nHitsPerString[gNStrings]{0};
+	TGraph* g_hits[gNStrings];
+	TGraph* g_lowerLimit[gNStrings];
+	TGraph* g_upperLimit[gNStrings];
+	TMultiGraph* mg_hitsMatrix[gNStrings];
+	TGraph* g_ledMatrix[gNStrings];
+	TGraph* g_QvsL = new TGraph(g_pulses.size());
+	g_QvsL->SetMarkerStyle(20);
+
+	int nOMsPerString = gNOMs/gNStrings;
+
+	for(int k = 0; k < event.nHits; k++)
+	{
+		nHitsPerString[event.hits[k].OMID/36]++;
+	}
+	for (int i = 0; i < gNStrings; ++i)
+	{
+		g_hits[i] = new TGraph(nHitsPerString[i]);
+		g_lowerLimit[i] = new TGraph(nOMsPerString);
+		g_upperLimit[i] = new TGraph(nOMsPerString);
+		mg_hitsMatrix[i] = new TMultiGraph(Form("mg_%d",i),Form("String_%d;Calibrated time [ns]; OM Z position [m]",i+1));
+		nHitsPerString[i] = 0;
+		g_ledMatrix[i] = new TGraph(1);
+		g_ledMatrix[i]->SetPoint(0,matrixTime,position.Z());
+	}
+	for(int k = 0; k < event.nHits; k++)
+	{
+		int stringID = event.hits[k].OMID/36;
+		g_hits[stringID]->SetPoint(nHitsPerString[stringID],event.hits[k].time,gOMpositions[event.hits[k].OMID].Z());
+		nHitsPerString[stringID]++;
+	}
+	for (int j = 0; j < gNOMs; ++j)
+	{
+		double distanceFromLEDmatrix = (position - gOMpositions[j]).Mag();
+	    double expectedTime = matrixTime + distanceFromLEDmatrix*ReciprocalSpeedOfLightinWater;
+		g_lowerLimit[j/nOMsPerString]->SetPoint(j%nOMsPerString,expectedTime-gTCutTimeWindowNs,gOMpositions[j].Z());
+		g_upperLimit[j/nOMsPerString]->SetPoint(j%nOMsPerString,expectedTime+gTCutTimeWindowNs,gOMpositions[j].Z());
+	}
+	for (int i = 0; i < g_pulses.size(); ++i)
+	{
+		double distanceFromLEDmatrix = (position - gOMpositions[g_pulses[i].OMID]).Mag();
+		g_QvsL->SetPoint(i,distanceFromLEDmatrix,g_pulses[i].charge);
+	}
+
+	TCanvas *cEvent = new TCanvas(Form("cEvent_%d",eventID),Form("cEvent_%d",eventID),200,10,600,400);  
+	cEvent->Divide(3,3);
+	for (int i = 0; i < gNStrings; ++i)
+	{
+		cEvent->cd(i+1);
+		mg_hitsMatrix[i]->Add(g_hits[i],"P");
+		mg_hitsMatrix[i]->Add(g_ledMatrix[i],"P");
+		mg_hitsMatrix[i]->Add(g_lowerLimit[i],"L");
+		mg_hitsMatrix[i]->Add(g_upperLimit[i],"L");
+		mg_hitsMatrix[i]->Draw("AP");
+		// mg_hitsMatrix[i]->SetBit(kCanDelete);
+		g_hits[i]->SetMarkerStyle(20);
+		g_ledMatrix[i]->SetMarkerStyle(20);
+		g_ledMatrix[i]->SetMarkerColor(kRed);
+		g_lowerLimit[i]->SetLineColor(kGreen);
+		g_upperLimit[i]->SetLineColor(kGreen);
+	}
+	cEvent->cd(9);
+	g_QvsL->Draw("AP");
+	g_QvsL->SetTitle("Charge vs. Distance;Distance from cascade [m]; Charge [p.e.]");
+	cEvent->Write();
+
+	delete cEvent;
+	delete g_QvsL;
+	
+	for (int i = 0; i < gNStrings; ++i)
+	{
+		delete mg_hitsMatrix[i];
+	}
+	return 0;
 }
 
 int EventVisualization(BExtractedImpulseTel* impulseTel, TVector3& position, double& matrixTime, int eventID)
@@ -1195,6 +1406,27 @@ bool TDelayFilterPassed(double matrixTime)
 	return false;
 }
 
+bool QRatioFilterPassed(UnifiedEvent &event, double &qRatio)
+{
+	double allCharge = 0;
+	for (int i = 0; i < event.nHits; ++i)
+	{
+		allCharge += event.hits[i].charge;
+	}
+	double insideCharge = 0;
+	for (int i = 0; i < g_pulses.size(); ++i)
+	{
+		insideCharge += g_pulses[i].charge;
+	}
+	// PrintGPulses();
+	// cout << "allCharge: " << allCharge << " insideCharge: " << insideCharge << " Ratio: " << (double)insideCharge/allCharge*100 << endl;
+	qRatio = (double)insideCharge/allCharge*100;
+	if (qRatio > gQRatioCut)
+		return true;
+	else
+		return false;
+}
+
 bool QRatioFilterPassed(BExtractedImpulseTel* impulseTel, double &qRatio)
 {
 	double allCharge = 0;
@@ -1399,51 +1631,6 @@ bool LikelihoodFilterPassedMC(TVector3 &matrixPosition, double &matrixTime, doub
 	return false;
 }
 
-// bool LikelihoodFilter2Passed(TVector3 &matrixPosition, double &matrixTime, double &energy, double &theta, double &phi, double &likelihood)
-// {
-// 	int nThetaSteps = 50;
-// 	int nPhiSteps = 50;
-// 	const int nEnergySteps = 50;
-
-// 	double EnergyValues[nEnergySteps]{1,1.5,2,2.5,3,3.5,4,4.5,5,7.5,10,15,25,50,75,100,125,150,175,200,225,250,275,300,325,350,375,400,425,450,475,500,550,600,650,700,750,800,850,900,950,1000,1.1,1.2,1.3,1.4,1.5,1.6,1.8,2};
-
-// 	int nPar = 0;
-// 	double* gin = new double(0);
-// 	double likelihoodValue = 0;
-// 	double cascadeParameters[7];
-// 	int iflag = 0;
-
-// 	cascadeParameters[0] = matrixPosition.X();
-// 	cascadeParameters[1] = matrixPosition.Y();
-// 	cascadeParameters[2] = matrixPosition.Z();
-// 	cascadeParameters[3] = matrixTime;
-
-// 	double lowestLog = 1000000;
-
-// 	for (int i = 0; i < nThetaSteps; ++i)
-// 	{
-// 		for (int j = 0; j < nPhiSteps; ++j)
-// 		{
-// 			for (int k = 0; k < nEnergySteps; ++k)
-// 			{
-// 				// Int_t &npar, Double_t* gin, Double_t &f, Double_t* par, Int_t iflag
-// 				cascadeParameters[4] = EnergyValues[i];
-// 				cascadeParameters[5] = j*TMath::Pi()/nThetaSteps;
-// 				cascadeParameters[6] = k*2*TMath::Pi()/nPhiSteps;
-// 				logLikelihood(nPar,gin,likelihoodValue,cascadeParameters,iflag);
-// 				if (likelihoodValue < lowestLog)
-// 				{
-// 					lowestLog = likelihoodValue;
-// 					energy = cascadeParameters[4];
-// 					theta = cascadeParameters[5];
-// 					phi = cascadeParameters[6];
-// 				}
-// 			}
-// 		}
-// 	}
-// 	cout << lowestLog << " " << energy << " " << theta << " " << phi << endl;
-// }
-
 void FillCascPos(TVector3 matrixPosition)
 {
 	g_cascadePosition->Set(g_cascadePosition->GetN()+1);
@@ -1454,40 +1641,157 @@ void FillCascPos(TVector3 matrixPosition)
 	h_XYposition->Fill(matrixPosition.X()-gOMpositions[287].X(),matrixPosition.Y()-gOMpositions[287].Y());
 }
 
-int DoTheMagic(TTree* tree, BExtractedImpulseTel* impulseTel)
+bool bigger_charge(const PulsesVariables& x, const PulsesVariables& y) { return x.charge > y.charge; }
+
+void CaussalityFilter(UnifiedEvent &event)
 {
-	// if --view (-w) switch is used, only specified eventID is visualized and program stops
-	if (gVisEventID != -1)
+	sort(event.hits.begin(), event.hits.end(), bigger_charge);
+
+	g_pulses.clear();
+
+	for (int i = 0; i < event.nHits; ++i)
 	{
-		TString outputFileName = BARS::Data::Directory(BARS::Data::JOINT, BARS::App::Season, BARS::App::Cluster, BARS::App::Run, gProductionID.c_str());
-		outputFileName += Form("recCasc_vis_%d.root",gVisEventID);
-		TFile* outputFile = new TFile(outputFileName,"RECREATE");
-		tree->GetEntry(gVisEventID);
-		TVector3 matrixPosition(0,0,0); 
-		double matrixTime = 0;
-		EventVisualization(impulseTel,matrixPosition,matrixTime,gVisEventID);
-		cout << "Visualization of event: " << gVisEventID << " has been produced!" << endl;
-		return 0;
+		bool addPulse = true;
+		for (int j = 0; j < g_pulses.size(); ++j)
+		{
+			double distance = TMath::Sqrt(TMath::Power(gOMpositions[event.hits[i].OMID].X()-gOMpositions[g_pulses[j].OMID].X(),2)+TMath::Power(gOMpositions[event.hits[i].OMID].Y()-gOMpositions[g_pulses[j].OMID].Y(),2)+TMath::Power(gOMpositions[event.hits[i].OMID].Z()-gOMpositions[g_pulses[j].OMID].Z(),2));			
+
+			if(abs(g_pulses[j].time - event.hits[i].time)/ReciprocalSpeedOfLightinWater > (distance + 50))     
+			{
+				addPulse = false;
+				break;
+			}
+		}
+		bool friendFound = false;
+		for (int j = 0; j < event.nHits; ++j)
+		{
+			if (i != j && event.hits[i].charge > 1 && event.hits[j].charge && abs(event.hits[i].OMID-event.hits[j].OMID) <= 2 && abs(event.hits[i].time-event.hits[j].time) < abs(event.hits[i].OMID-event.hits[j].OMID)*70+50)
+			{
+				friendFound = true;
+				break;
+			}
+		}
+		if (addPulse && friendFound && event.hits[i].charge)
+		// if (addPulse)
+			g_pulses.push_back(PulsesVariables{event.hits[i].OMID,event.hits[i].time,event.hits[i].charge,-1,event.hits[i].noise,-1});
+	}
+}
+
+struct EventStats
+{
+	int nEntries = 0;
+	int nNFilter = 0;
+	int nQFilter = 0;
+	int nQFilterChi2 = 0;
+	int nTFilter = 0;
+	int nTFilterChi2 = 0;
+	int nZFilter = 0;
+	int nTDelayFilter = 0;
+	int nQRatioFilter = 0;
+	int nBranchFilter = 0;
+	int nCloseHitsFilter = 0;
+	int nLikelihoodFilter = 0;
+};
+
+bool NStringFilterPassed()
+{
+	int nHitStrings = 0;
+	int hitStrings[8]{0};
+
+	for (int i = 0; i < g_pulses.size(); ++i)
+	{
+		hitStrings[(g_pulses[i].OMID)/36] = 1;
 	}
 
-	TString outputFileName2 = BARS::Data::Directory(BARS::Data::JOINT, BARS::App::Season, BARS::App::Cluster, BARS::App::Run, gProductionID.c_str());
-	outputFileName2 += "recCasc_nTuple.root";
-	TFile* outputFile2;
-	if (App::Output == "")
-		outputFile2 = new TFile(outputFileName2,"RECREATE");
+	for (int i = 0; i < 8; ++i)
+	{
+		nHitStrings += hitStrings[i];
+	}
+	// cout << nHitStrings << endl;
+	// PrintCascade(cascade);
+
+	if (nHitStrings > 3)
+		return true;
 	else
-		outputFile2 = new TFile(Form("%s/exp%d/cluster%d/%04d/recCasc_nTuple.root",App::Output,BARS::App::Season,BARS::App::Cluster,BARS::App::Run),"RECREATE");
+		return false;
+}
 
-   	TNtuple* nt_cascades = new TNtuple("nt_cascades","NTuple of reconstructed cascades","runID:EventID:NPulses:NPulsesT:QTotal:QRatio:CloseHits:Likelihood:X:Y:Z:Time:Energy:Theta:Phi");
+int DoTheMagicUnified(int eventID, UnifiedEvent &event, TNtuple* nt_cascades, EventStats* eventStats)
+{
+	int nPulses = 0;
+	int nPulsesT = 0;
+	double qRatio = 0;
+	int closeHits = 0;
+	double overallCharge = 0;
 
-	TString outputFileName = BARS::Data::Directory(BARS::Data::JOINT, BARS::App::Season, BARS::App::Cluster, BARS::App::Run, gProductionID.c_str());
-	outputFileName += "recCasc_vis.root";
-	TFile* outputFile;
-	if (App::Output == "")
-		outputFile = new TFile(outputFileName,"RECREATE");
-	else
-		outputFile = new TFile(Form("%s/exp%d/cluster%d/%04d/recCasc_vis.root",App::Output,BARS::App::Season,BARS::App::Cluster,BARS::App::Run),"RECREATE");
+	if (!NFilterPassed(event,nPulses))
+		return -1;
+	eventStats->nNFilter++;
+	if (!QFilterPassed(event,overallCharge))
+		return -1;
+	eventStats->nQFilter++;
+	CaussalityFilter(event);
+	if (!NStringFilterPassed())
+		return -1;
 
+	TVector3 matrixPosition(0,0,0); 
+	double matrixTime = 0;
+
+	EstimateInitialMatrixPositionMatrix(matrixPosition,matrixTime);
+
+	fMinuit->SetFCN(MEstimator);
+	// fMinuit->SetFCN(chi2);
+	double chi2QResult = FitMatrixPosition(matrixPosition,matrixTime);
+	h_chi2AfterQ->Fill(chi2QResult);
+	if (chi2QResult > gQCutChi2)
+		return -1;
+	eventStats->nQFilterChi2++;
+	if (!TFilterPassed(event,matrixPosition,matrixTime,nPulsesT))
+		return -1;
+	eventStats->nTFilter++;
+	fMinuit->SetFCN(chi2);
+	double chi2TResult = FitMatrixPosition(matrixPosition,matrixTime);
+	// matrixPosition.Print();
+	h_chi2AfterT->Fill(chi2TResult);
+	if (chi2TResult > gTCutChi2)
+		return -1;
+	eventStats->nTFilterChi2++;
+	TFilterPassed(event,matrixPosition,matrixTime,nPulsesT);
+	if (!ZFilterPassed(matrixPosition))
+		return -1;
+	eventStats->nZFilter++;
+	FillCascPos(matrixPosition);
+	if (!TDelayFilterPassed(matrixTime))
+		return -1;
+	eventStats->nTDelayFilter++;
+	if (!QRatioFilterPassed(event,qRatio))
+		return -1;
+	eventStats->nQRatioFilter++;
+	if (!BranchFilterPassed(matrixPosition))
+		return -1;
+	eventStats->nBranchFilter++;
+	if (!CloseHitsFilterPassed(matrixPosition,closeHits))
+		return -1;
+	eventStats->nCloseHitsFilter++;
+
+	double cascadeEnergy = 0;
+	double cascadeTheta = 0;
+	double cascadePhi = 0;
+	double likelihood = 0;
+	// cout << i << endl;
+	if (!LikelihoodFilterPassed(matrixPosition,matrixTime,cascadeEnergy,cascadeTheta,cascadePhi,likelihood))
+		return -1;
+	eventStats->nLikelihoodFilter++;
+	float parameters[21]{BARS::App::Run,eventID,nPulses,nPulsesT,overallCharge,qRatio,closeHits,likelihood,matrixPosition.X(),matrixPosition.Y(),matrixPosition.Z(),matrixTime,cascadeEnergy,cascadeTheta,cascadePhi,event.mcPosition.X(),event.mcPosition.Y(),event.mcPosition.Z(),event.mcEnergy,event.mcTheta,event.mcPhi};
+	nt_cascades->Fill(parameters);
+	EventVisualization(eventID,event,matrixPosition,matrixTime);
+	ChargeVisualization(eventID,matrixPosition.X(),matrixPosition.Y(),matrixPosition.Z(),cascadeEnergy,cascadeTheta,cascadePhi);
+	PrintCascadeJSON(eventID,matrixPosition.X(),matrixPosition.Y(),matrixPosition.Z(),matrixTime,cascadeTheta,cascadePhi);
+	return 0;
+}
+
+int DoTheMagic(TTree* tree, BExtractedImpulseTel* impulseTel, TNtuple* nt_cascades)
+{
 	int nEntries = (gNEventsProcessed == -1)?tree->GetEntries():gNEventsProcessed;
 	int nNFilter = 0;
 	int nQFilter = 0;
@@ -1527,7 +1831,7 @@ int DoTheMagic(TTree* tree, BExtractedImpulseTel* impulseTel)
 		//initialization of R and T for LED matrix
 		TVector3 matrixPosition(0,0,0); 
 		double matrixTime = 0;
-		EstimateInitialMatrixPositionMC(matrixPosition,matrixTime);
+		EstimateInitialMatrixPositionGrid(matrixPosition,matrixTime);
 		// matrixPosition.Print();
 		// fMinuit->SetFCN(chi2);
 		fMinuit->SetFCN(MEstimator);
@@ -1599,17 +1903,11 @@ int DoTheMagic(TTree* tree, BExtractedImpulseTel* impulseTel)
 	cout << "After CloseHitsFilter: \t" << nCloseHitsFilter << endl;
 	cout << "After LikelihoodFiter: \t" << nLikelihoodFilter << endl;
 
-	outputFile->Close();
-	outputFile2->cd();
-
-	if (nCloseHitsFilter < 100)
-		nt_cascades->Write();
-
-	outputFile2->Close();
+	
 
 	// delete outputFile;
 
-	return 0;
+	return nCloseHitsFilter;
 }
 
 
@@ -1827,7 +2125,7 @@ void SaveHistograms()
 // gLogTable4D structure: Rho, Z, Phi, cosTheta
 int ReadLogTable()
 {
-	cout << "4D LogTable reading starts" << endl;
+	// cout << "4D LogTable reading starts" << endl;
 	ifstream fTab;
 	if (App::Output == "")
 		fTab.open("/Data/BaikalData/showerTable/hq001200_double.dqho2011", ios::in|ios::binary|ios::ate);
@@ -1858,7 +2156,7 @@ int ReadLogTable()
 	  }
 	}
 	fTab.close();
-	cout << "LogTable ends" << endl;
+	// cout << "LogTable ends" << endl;
 	return 0;
 }
 
@@ -1874,6 +2172,74 @@ void PrintRunInfo(TTree* tree, BExtractedHeader* header)
 	std::cout << std::string(80,'*') << std::endl;
 }
 
+void TransformToUnifiedEvent(BExtractedImpulseTel* impulseTel, UnifiedEvent &unifiedEvent)
+{
+	int nHits = 0;
+	for (int i = 0; i < impulseTel->GetNimpulse(); ++i)
+	{
+		if (impulseTel->GetQ(i) > 0 && gOMtimeCal[impulseTel->GetNch(i)] != 0)
+		{
+			nHits++;
+			unifiedEvent.hits.push_back(PulsesVariables{impulseTel->GetNch(i),5*(impulseTel->GetT(i))-gOMtimeCal[impulseTel->GetNch(i)],impulseTel->GetQ(i)/gOMQCal[impulseTel->GetNch(i)],-1,false,-1});
+		}
+	}
+	unifiedEvent.nHits = nHits;
+}
+
+void TransformToUnifiedEvent(BEvent* event, BSourceEAS* mcEvent, UnifiedEvent &unifiedEvent)
+{
+	int nHits = 0;
+	for (int i = 0; i < event->NHits(); ++i)
+	{
+		if (event->Q(i) > 0)
+		{
+			nHits++;
+			unifiedEvent.hits.push_back(PulsesVariables{event->HitChannel(i),event->T(i),event->Q(i),-1,false,-1});
+		}
+	}
+	unifiedEvent.nHits = nHits;
+
+	unifiedEvent.mcTheta = mcEvent->GetMuonTrack(0)->GetPolarAngle();
+	unifiedEvent.mcPhi = mcEvent->GetMuonTrack(0)->GetAzimuthAngle();
+
+
+	double highestEnergy = 0;
+	int muonID = -1;
+	int cascadeID = -1;
+
+	for (int k = 0; k < mcEvent->GetNumTracks(); ++k)
+	{
+		for (int j = 0; j < mcEvent->GetMuonTrack(k)->GetNumShowers(); ++j)
+		{
+			if (mcEvent->GetMuonTrack(k)->GetShower(j)->GetE() > highestEnergy)
+			{
+				highestEnergy = mcEvent->GetMuonTrack(k)->GetShower(j)->GetE();
+				muonID = k;
+				cascadeID = j;
+			}
+			// cout << k << " " << j << " " << mcEvent->GetMuonTrack(k)->GetShower(j)->GetX() << " " << mcEvent->GetMuonTrack(k)->GetShower(j)->GetY() << " " << mcEvent->GetMuonTrack(k)->GetShower(j)->GetZ() << " " << mcEvent->GetMuonTrack(k)->GetShower(j)->GetE() << endl;
+		}
+	}		
+	if (muonID != -1 && cascadeID != -1)
+	{
+		unifiedEvent.mcEnergy = mcEvent->GetMuonTrack(muonID)->GetShower(cascadeID)->GetE();
+		unifiedEvent.mcPosition.SetX(mcEvent->GetMuonTrack(muonID)->GetShower(cascadeID)->GetX());
+		unifiedEvent.mcPosition.SetY(mcEvent->GetMuonTrack(muonID)->GetShower(cascadeID)->GetY());
+		unifiedEvent.mcPosition.SetZ(mcEvent->GetMuonTrack(muonID)->GetShower(cascadeID)->GetZ());		
+	}
+}
+
+void TransformToUnifiedEvent(mcCascade* cascade, UnifiedEvent &unifiedEvent)
+{
+	int nHits = 0;
+	for (int i = 0; i < cascade->nHits; ++i)
+	{
+		nHits++;
+		unifiedEvent.hits.push_back(PulsesVariables{cascade->chID[i]-1,cascade->time[cascade->chID[i]-1],cascade->charge[cascade->chID[i]-1],-1,false,-1});
+	}
+	unifiedEvent.nHits = nHits;
+}
+
 int processExperimentalData()
 {
 	if (!CheckParams())
@@ -1884,12 +2250,6 @@ int processExperimentalData()
 
     // const char* filePath = BARS::Data::File(BARS::App::Cluster, BARS::App::Season, BARS::App::Run, BARS::Data::JOINT,"r01_i01_j01_t01");
     const char* filePath = BARS::Data::File(BARS::Data::JOINT, BARS::App::Season, BARS::App::Cluster, BARS::App::Run, gProductionID.c_str());
-
-    if (ReadLogTable() == -1)
-    {
-    	std::cout << "Problem with 4D LogLikelihood file!" << std::endl;
-    	return -1;
-    }
 
     if (!BARS::App::FileExists(filePath))
     {
@@ -1909,23 +2269,115 @@ int processExperimentalData()
 	PrintConfig();
 	PrintRunInfo(tree,header);
 	cout << "Season: " << BARS::App::Season << " Cluster: " << BARS::App::Cluster << " Run: " <<  BARS::App::Run << endl;
+	cout << "Reading Geometry ... ";
+	cout << std::flush;
 	if (ReadGeometry(tree,header) == -1)
 	{
 		std::cout << "Problem with geometry file!" << std::endl;
 		return -1;
 	}
+	cout << "DONE!" << endl;
+	cout << "Reading Time Calibration ... ";
+	cout << std::flush;
 	if (ReadTimeCal() == -1)
 	{
 		std::cout << "Problem with time calibration files!" << std::endl;
 		return -1;
 	}
+	cout << "DONE!" << endl;
+	cout << "Reading Charge Calibration ... ";
+	cout << std::flush;
 	if (ReadQCal() == -1)
 	{
 		std::cout << "Problem with charge calibration files!" << std::endl;
 		return -1;	
 	}
+	cout << "DONE!" << endl;
+	cout << "Reading Log Table ... ";
+	cout << std::flush;
+	if (ReadLogTable() == -1)
+	{
+		std::cout << "Problem with 4D LogLikelihood file!" << std::endl;
+		return -1;
+	}
+	cout << "DONE!" << endl;
 
-	DoTheMagic(tree,impulseTel);
+	// if --view (-w) switch is used, only specified eventID is visualized and program stops
+	if (gVisEventID != -1)
+	{
+		TString outputFileName = BARS::Data::Directory(BARS::Data::JOINT, BARS::App::Season, BARS::App::Cluster, BARS::App::Run, gProductionID.c_str());
+		outputFileName += Form("recCasc_vis_%d.root",gVisEventID);
+		TFile* outputFile = new TFile(outputFileName,"RECREATE");
+		tree->GetEntry(gVisEventID);
+		TVector3 matrixPosition(0,0,0); 
+		double matrixTime = 0;
+		EventVisualization(impulseTel,matrixPosition,matrixTime,gVisEventID);
+		cout << "Visualization of event: " << gVisEventID << " has been produced!" << endl;
+		return 0;
+	}
+
+	TString outputFileName2 = BARS::Data::Directory(BARS::Data::JOINT, BARS::App::Season, BARS::App::Cluster, BARS::App::Run, gProductionID.c_str());
+	outputFileName2 += "recCasc_nTuple.root";
+	TFile* outputFile2;
+	if (App::Output == "")
+		outputFile2 = new TFile(outputFileName2,"RECREATE");
+	else
+		outputFile2 = new TFile(Form("%s/exp%d/cluster%d/%04d/recCasc_nTuple.root",App::Output,BARS::App::Season,BARS::App::Cluster,BARS::App::Run),"RECREATE");
+
+   	TNtuple* nt_cascades = new TNtuple("nt_cascades","NTuple of reconstructed cascades","runID:EventID:NPulses:NPulsesT:QTotal:QRatio:CloseHits:Likelihood:X:Y:Z:Time:Energy:Theta:Phi:TrueX:TrueY:TrueZ:TrueEnergy:TrueTheta:TruePhi");
+
+	TString outputFileName = BARS::Data::Directory(BARS::Data::JOINT, BARS::App::Season, BARS::App::Cluster, BARS::App::Run, gProductionID.c_str());
+	outputFileName += "recCasc_vis.root";
+	TFile* outputFile;
+	if (App::Output == "")
+		outputFile = new TFile(outputFileName,"RECREATE");
+	else
+		outputFile = new TFile(Form("%s/exp%d/cluster%d/%04d/recCasc_vis.root",App::Output,BARS::App::Season,BARS::App::Cluster,BARS::App::Run),"RECREATE");
+
+	EventStats* eventStats = new EventStats();
+	eventStats->nEntries = (gNEventsProcessed == -1)?tree->GetEntries():gNEventsProcessed;
+
+	
+	for (int i = 0; i < eventStats->nEntries; ++i)
+	{
+		if (i%(eventStats->nEntries/10) == 0)
+		{
+			cout << round((double)(i)/eventStats->nEntries*100) << "% ";
+			cout << std::flush;
+		}
+		tree->GetEntry(i);
+		UnifiedEvent unifiedEvent;
+		TransformToUnifiedEvent(impulseTel,unifiedEvent);
+		DoTheMagicUnified(i,unifiedEvent,nt_cascades,eventStats);
+		if (eventStats->nCloseHitsFilter > 100)
+		{
+			cout << "File was identified as a matrixRun and terminated" << endl;
+			break;
+		}
+	}
+	// DoTheMagic(tree,impulseTel,nt_cascades);
+
+	cout << "\nNentries: \t" << eventStats->nEntries << endl;
+	cout << "After NFilter: \t" << eventStats->nNFilter << endl;
+	cout << "After QFilter: \t" << eventStats->nQFilter << endl;
+	cout << "After QFilterChi2: \t" << eventStats->nQFilterChi2 << endl;
+	cout << "After TFilter: \t" << eventStats->nTFilter << endl;
+	cout << "After TFilterChi2: \t" << eventStats->nTFilterChi2 << endl;
+	cout << "After ZFilter: \t" << eventStats->nZFilter << endl;
+	cout << "After TDelayFilter: \t" << eventStats->nTDelayFilter << endl;
+	cout << "After QRatioFilter: \t" << eventStats->nQRatioFilter << endl;
+	cout << "After BranchFilter: \t" << eventStats->nBranchFilter << endl;
+	cout << "After CloseHitsFilter: \t" << eventStats->nCloseHitsFilter << endl;
+	cout << "After LikelihoodFiter: \t" << eventStats->nLikelihoodFilter << endl;
+
+	outputFile->Close();
+	outputFile2->cd();
+
+	if (eventStats->nCloseHitsFilter < 100)
+		nt_cascades->Write();
+
+	outputFile2->Close();
+
 	SaveHistograms();
 
     return 0;
@@ -2266,24 +2718,94 @@ int processMCData()
     BSourceEAS* mcEvent = NULL;
     mcFiles->SetBranchAddress("MCEventSource.",&mcEvent);
 
-    if (ReadLogTable() == -1)
-    {
-    	std::cout << "Problem with 4D LogLikelihood file!" << std::endl;
-    	return -1;
-    }
-
     PrintConfig();
     cout << "RunInfo = Number of entries & runTime [hours] & runTime [days]" << endl;
     cout << "! " << mcFiles->GetEntries() << " " << (mcFiles->GetListOfFiles()->GetEntries()*3900)/3600.0 << "  " << (mcFiles->GetListOfFiles()->GetEntries()*3900)/3600.0/24.0 << endl; 
     std::cout << std::string(80,'*') << std::endl;
 
+    cout << "Reading Geometry ... ";
+	cout << std::flush;
     if (ReadGeometryMC(file) == -1)
 	{
 		std::cout << "Problem with geometry file!" << std::endl;
 		return -1;
 	}
+	cout << "DONE!" << endl;
+	cout << "Reading Log Table ... ";
+	cout << std::flush;
+	if (ReadLogTable() == -1)
+	{
+		std::cout << "Problem with 4D LogLikelihood file!" << std::endl;
+		return -1;
+	}
+	cout << "DONE!" << endl;
 
-    DoTheMagicMC(mcFiles,event,eventMask,mcEvent);
+	TString outputFileName2 = "";
+	TString outputFileName = "";
+	if (gMCMu)
+	{
+		outputFileName2 = "/Data/BaikalData/mc/2018may/";
+		outputFileName = "/Data/BaikalData/mc/2018may/";
+	}
+	if (gMCNu)
+	{
+		outputFileName2 = "/Data/BaikalData/mc/nuatm_feb19/";
+		outputFileName = "/Data/BaikalData/mc/nuatm_feb19/";
+	}
+
+	outputFileName2 += "recCasc_nTuple.root";
+	TFile* outputFile2 = new TFile(outputFileName2,"RECREATE");
+
+   	// TNtuple* nt_cascades = new TNtuple("nt_cascades","NTuple of reconstructed cascades","runID:EventID:NPulses:NPulsesT:QRatio:CloseHits:Likelihood:X:Y:Z:Time:InitDist:FinalDist:Energy:Theta:Phi:TrueX:TrueY:TrueZ:TrueEnergy:TrueTheta:TruePhi:Efficiency:EventPurity:CascadePurity");
+   	TNtuple* nt_cascades = new TNtuple("nt_cascades","NTuple of reconstructed cascades","runID:EventID:NPulses:NPulsesT:QTotal:QRatio:CloseHits:Likelihood:X:Y:Z:Time:Energy:Theta:Phi:TrueX:TrueY:TrueZ:TrueEnergy:TrueTheta:TruePhi");
+
+	outputFileName += "recCasc_vis.root";
+	TFile* outputFile = new TFile(outputFileName,"RECREATE");
+
+	EventStats* eventStats = new EventStats();
+	eventStats->nEntries = (gNEventsProcessed == -1)?mcFiles->GetEntries():gNEventsProcessed;
+
+	for (int i = 0; i < eventStats->nEntries; ++i)
+	{
+		if (i%(eventStats->nEntries/10) == 0)
+		{
+			cout << round((double)(i)/eventStats->nEntries*100) << "% ";
+			cout << std::flush;
+		}
+		mcFiles->GetEntry(i);
+		UnifiedEvent unifiedEvent;
+		TransformToUnifiedEvent(event,mcEvent,unifiedEvent);
+		DoTheMagicUnified(i,unifiedEvent,nt_cascades,eventStats);
+		if (eventStats->nCloseHitsFilter > 100)
+		{
+			cout << "File was identified as a matrixRun and terminated" << endl;
+			break;
+		}
+	}
+
+    // DoTheMagicMC(mcFiles,event,eventMask,mcEvent);
+
+    cout << "\nNentries: \t" << eventStats->nEntries << endl;
+    cout << "After NFilter: \t" << eventStats->nNFilter << endl;
+    cout << "After QFilter: \t" << eventStats->nQFilter << endl;
+    cout << "After QFilterChi2: \t" << eventStats->nQFilterChi2 << endl;
+    cout << "After TFilter: \t" << eventStats->nTFilter << endl;
+    cout << "After TFilterChi2: \t" << eventStats->nTFilterChi2 << endl;
+    cout << "After ZFilter: \t" << eventStats->nZFilter << endl;
+    cout << "After TDelayFilter: \t" << eventStats->nTDelayFilter << endl;
+    cout << "After QRatioFilter: \t" << eventStats->nQRatioFilter << endl;
+    cout << "After BranchFilter: \t" << eventStats->nBranchFilter << endl;
+    cout << "After CloseHitsFilter: \t" << eventStats->nCloseHitsFilter << endl;
+    cout << "After LikelihoodFiter: \t" << eventStats->nLikelihoodFilter << endl;
+
+    outputFile->Close();
+    outputFile2->cd();
+
+    if (eventStats->nCloseHitsFilter < 100)
+    	nt_cascades->Write();
+
+    outputFile2->Close();
+
 	SaveHistograms();
 
     return 0;
@@ -2400,7 +2922,7 @@ int DoTheMagicMCCascades(TChain* tree, mcCascade* cascade)
 		TVector3 matrixPosition(0,0,0); 
 		double matrixTime = 0;
 		// EstimateInitialMatrixPositionMC(matrixPosition,matrixTime,cascade);
-		EstimateInitialMatrixPositionMC(matrixPosition,matrixTime);
+		EstimateInitialMatrixPositionGrid(matrixPosition,matrixTime);
 		// cout << "TruePosition: " << cascade->position[0] << " " << cascade->position[1] << " " << cascade->position[2] << endl;
 		initialPosEstim = matrixPosition;
 		// matrixPosition.Print();
@@ -2500,8 +3022,6 @@ int DoTheMagicMCCascades(TChain* tree, mcCascade* cascade)
 	return 0;
 }
 
-
-
 int ReadGeometryMCCascades()
 {
 	TString fileName = "/Data/BaikalData/mc/DZH_cascades/array2016_phys_kebkal.dat";
@@ -2545,24 +3065,83 @@ int processMCCascades()
 	mcFiles->SetBranchAddress("tre",cascade->time);
 	mcFiles->SetBranchAddress("are",cascade->charge);
 
-	if (ReadLogTable() == -1)
-    {
-    	std::cout << "Problem with 4D LogLikelihood file!" << std::endl;
-    	return -1;
-    }
-
     PrintConfig();
     cout << "RunInfo = Number of entries & runTime [hours] & runTime [days]" << endl;
     cout << "! " << mcFiles->GetEntries() << " " << "------" << "  " << "------" << endl; 
     std::cout << std::string(80,'*') << std::endl;
 
+    cout << "Reading Geometry ... ";
+	cout << std::flush;
     if (ReadGeometryMCCascades() == -1)
 	{
 		std::cout << "Problem with geometry file!" << std::endl;
 		return -1;
 	}
+	cout << "DONE!" << endl;
+	cout << "Reading Log Table ... ";
+	cout << std::flush;
+	if (ReadLogTable() == -1)
+    {
+    	std::cout << "Problem with 4D LogLikelihood file!" << std::endl;
+    	return -1;
+    }
+    cout << "DONE!" << endl;
 
-    DoTheMagicMCCascades(mcFiles,cascade);
+    TString outputFileName2 = "/Data/BaikalData/mc/DZH_cascades/";
+	TString outputFileName = "/Data/BaikalData/mc/DZH_cascades/";
+
+	outputFileName2 += "recCasc_nTuple.root";
+	TFile* outputFile2 = new TFile(outputFileName2,"RECREATE");
+
+   	TNtuple* nt_cascades = new TNtuple("nt_cascades","NTuple of reconstructed cascades","runID:EventID:NPulses:NPulsesT:QTotal:QRatio:CloseHits:Likelihood:X:Y:Z:Time:Energy:Theta:Phi:TrueX:TrueY:TrueZ:TrueEnergy:TrueTheta:TruePhi");
+
+	outputFileName += "recCasc_vis.root";
+	TFile* outputFile = new TFile(outputFileName,"RECREATE");
+
+	EventStats* eventStats = new EventStats();
+	eventStats->nEntries = (gNEventsProcessed == -1)?mcFiles->GetEntries():gNEventsProcessed;
+
+	for (int i = 0; i < eventStats->nEntries; ++i)
+	{
+		if (i%(eventStats->nEntries/10) == 0)
+		{
+			cout << round((double)(i)/eventStats->nEntries*100) << "% ";
+			cout << std::flush;
+		}
+		mcFiles->GetEntry(i);
+		UnifiedEvent unifiedEvent;
+		TransformToUnifiedEvent(cascade,unifiedEvent);
+		DoTheMagicUnified(i,unifiedEvent,nt_cascades,eventStats);
+		if (eventStats->nCloseHitsFilter > 100)
+		{
+			cout << "File was identified as a matrixRun and terminated" << endl;
+			break;
+		}
+	}
+
+    // DoTheMagicMCCascades(mcFiles,cascade);
+
+	cout << "\nNentries: \t" << eventStats->nEntries << endl;
+    cout << "After NFilter: \t" << eventStats->nNFilter << endl;
+    cout << "After QFilter: \t" << eventStats->nQFilter << endl;
+    cout << "After QFilterChi2: \t" << eventStats->nQFilterChi2 << endl;
+    cout << "After TFilter: \t" << eventStats->nTFilter << endl;
+    cout << "After TFilterChi2: \t" << eventStats->nTFilterChi2 << endl;
+    cout << "After ZFilter: \t" << eventStats->nZFilter << endl;
+    cout << "After TDelayFilter: \t" << eventStats->nTDelayFilter << endl;
+    cout << "After QRatioFilter: \t" << eventStats->nQRatioFilter << endl;
+    cout << "After BranchFilter: \t" << eventStats->nBranchFilter << endl;
+    cout << "After CloseHitsFilter: \t" << eventStats->nCloseHitsFilter << endl;
+    cout << "After LikelihoodFiter: \t" << eventStats->nLikelihoodFilter << endl;
+
+    outputFile->Close();
+    outputFile2->cd();
+
+    if (eventStats->nCloseHitsFilter < 100)
+    	nt_cascades->Write();
+
+    outputFile2->Close();
+
     SaveHistograms();
 
     return 0;
@@ -2579,23 +3158,17 @@ int main(int argc, char** argv)
     if (!gMCMu && !gMCNu && !gMCCas)
     {
     	processExperimentalData();
-    	clock_t end = clock();
-    	cout << endl << "Elapsed time : " << double(end - begin)/CLOCKS_PER_SEC << endl;
-		return 0;    	
     }
     if (gMCMu || gMCNu)
     {
 	    processMCData();
-	    clock_t end = clock();
-	    cout << endl << "Elapsed time : " << double(end - begin)/CLOCKS_PER_SEC << endl;
-	    return 0;
     }
     if (gMCCas)
     {
     	processMCCascades();
-    	clock_t end = clock();
-    	cout << endl << "Elapsed time : " << double(end - begin)/CLOCKS_PER_SEC << endl;
-    	return 0;
     }
-    return -1;
+
+    clock_t end = clock();
+	cout << endl << "Elapsed time : " << double(end - begin)/CLOCKS_PER_SEC << endl;
+    return 0;
 }
