@@ -1325,7 +1325,7 @@ int PrintCascadeJSON(int eventID, double X, double Y, double Z, double time, dou
 	if (App::Output == "")
 		outputFileName = BARS::Data::Directory(BARS::Data::JOINT, BARS::App::Season, BARS::App::Cluster, BARS::App::Run, gProductionID.c_str());
 	else
-		outputFileName = Form("%s/data/exp%d/cluster%d/%04d/",App::Output,BARS::App::Season,BARS::App::Cluster,BARS::App::Run);
+		outputFileName = Form("%s/exp%d/cluster%d/%04d/",App::Output.Data(),BARS::App::Season,BARS::App::Cluster,BARS::App::Run);
 	char fname[100];
 	std::sprintf(fname,"cascade_season%d_cluster%d_run%d_evt%d.json",BARS::App::Season, BARS::App::Cluster, BARS::App::Run, eventID);
 	outputFileName += fname;
@@ -1929,7 +1929,11 @@ int SetOMsDynamic(BGeomTel* bgeom) //dynamic posiions
 
 int ReadGeometry(TTree* tree, BExtractedHeader* header) // read dynamic geometry
 {
-	const char* geometryFileName = BARS::Geom::File(BARS::App::Cluster, BARS::App::Season, BARS::Geom::OM_EXPORT_LINEAR);
+	const char* geometryFileName;
+	if (BARS::App::Season != 2019)
+		geometryFileName = BARS::Geom::File(BARS::App::Cluster, BARS::App::Season, BARS::Geom::OM_EXPORT_LINEAR);
+	else
+		geometryFileName = Form("/home/fajtak/geometry-tmp/2019/cluster%d/geometry.export-linear.root",BARS::App::Cluster);
 
 	TTree* geometryTree = nullptr;
 	TFile* geomFile = new TFile(geometryFileName,"READ");
@@ -2107,7 +2111,7 @@ void SaveHistograms()
 	if (App::Output == "")
 		outputFile = new TFile(outputFileName,"RECREATE");
 	else
-		outputFile = new TFile(Form("%s/data/exp%d/cluster%d/%04d/recCasc_hist.root",App::Output,BARS::App::Season,BARS::App::Cluster,BARS::App::Run),"RECREATE");
+		outputFile = new TFile(Form("%s/exp%d/cluster%d/%04d/recCasc_hist.root",App::Output.Data(),BARS::App::Season,BARS::App::Cluster,BARS::App::Run),"RECREATE");
 
 	h_nHits->Write();
 	h_chargePerHit->Write();
@@ -2322,7 +2326,7 @@ int processExperimentalData()
 	if (App::Output == "")
 		outputFile2 = new TFile(outputFileName2,"RECREATE");
 	else
-		outputFile2 = new TFile(Form("%s/exp%d/cluster%d/%04d/recCasc_nTuple.root",App::Output,BARS::App::Season,BARS::App::Cluster,BARS::App::Run),"RECREATE");
+		outputFile2 = new TFile(Form("%s/exp%d/cluster%d/%04d/recCasc_nTuple.root",App::Output.Data(),BARS::App::Season,BARS::App::Cluster,BARS::App::Run),"RECREATE");
 
    	TNtuple* nt_cascades = new TNtuple("nt_cascades","NTuple of reconstructed cascades","runID:EventID:NPulses:NPulsesT:QTotal:QRatio:CloseHits:Likelihood:X:Y:Z:Time:Energy:Theta:Phi:TrueX:TrueY:TrueZ:TrueEnergy:TrueTheta:TruePhi");
 
@@ -2332,7 +2336,7 @@ int processExperimentalData()
 	if (App::Output == "")
 		outputFile = new TFile(outputFileName,"RECREATE");
 	else
-		outputFile = new TFile(Form("%s/exp%d/cluster%d/%04d/recCasc_vis.root",App::Output,BARS::App::Season,BARS::App::Cluster,BARS::App::Run),"RECREATE");
+		outputFile = new TFile(Form("%s/exp%d/cluster%d/%04d/recCasc_vis.root",App::Output.Data(),BARS::App::Season,BARS::App::Cluster,BARS::App::Run),"RECREATE");
 
 	EventStats* eventStats = new EventStats();
 	eventStats->nEntries = (gNEventsProcessed == -1)?tree->GetEntries():gNEventsProcessed;

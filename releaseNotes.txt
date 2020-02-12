@@ -1,4 +1,8 @@
 12.02.2019 - git commit ---
+	* Changes in the folder paths for VM68 (processExperimental, json, saveHistograms)
+	* 2019 geometry read directly from /home/fajtak/geometry-tmp/
+
+12.02.2019 - git commit aa3740c13ad24331de52754d0e1626afb29f3366
 	* Huge change!!! All inputs (data, MC, MCcascades) are now processed in the same way
 	* standardized UniformEvent was implemented and all different inputs are transformed to this format
 	* DoTheMagicUnified()
